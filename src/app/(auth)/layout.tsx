@@ -19,14 +19,14 @@ export default function RootLayout({
         left: 0,
         width: "100%",
         height: "100%",
-        zIndex: -1, // En
+        zIndex: -1,
     };
 
     const mainStyle = {
         position: "relative" as const, // Ensure the background div is positioned relative to the main element
     };
     return (
-        <main className="flex h-screen w-full justify-center my-auto" style={mainStyle}>
+        <main className="flex h-full w-full justify-center my-auto" style={mainStyle}>
             <div style={backgroundStyle}></div>
             {children}
             <div className="auth-asset flex-1 flex-col w-full">
