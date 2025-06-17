@@ -7,7 +7,7 @@ import { ChangeEvent, FormEvent, useState } from "react"
 import AlertDialogue from "../components/AlertDialogue"
 import { LogIn } from 'lucide-react';
 import { useRouter } from "next/navigation"
-
+import { signUpUser } from "@/lib/api/auth"
 
 interface FormData {
     name: string
@@ -75,10 +75,24 @@ export function SignUpForm({
 
 
 
-    const onSubmitHandler = (e: FormEvent<HTMLFormElement>) => {
+    const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (onValidationCheck()) {
-            console.log(formData);
+        try {
+            if (onValidationCheck()) {
+                const payload = {
+                    name: formData.name,
+                    rollno: formData.rollno,
+                    email: formData.email,
+                    password: formData.password
+                }
+
+                const result = await signUpUser(payload);
+
+                if (result) alert(`login successfull: ${result}`)
+                alert("hello world")
+            }
+        } catch (error: any) {
+            console.error("Signup failed:", error.message);
         }
     }
 

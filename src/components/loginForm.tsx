@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChangeEvent, FormEvent, useState } from "react"
+import { ChangeEvent, FormEvent, useEffect, useState } from "react"
 import AlertDialogue from "../components/AlertDialogue"
 import { useRouter } from 'next/navigation'
-import { UserPlus } from "lucide-react"
+import { Loader2, UserPlus } from "lucide-react"
+import { useAuthStore } from "../lib/store/useAuthStore"
+
 
 
 interface FormData {
@@ -15,7 +17,6 @@ interface FormData {
     email: string
     password: string
 }
-
 
 export function LoginForm({
     className,
@@ -36,33 +37,12 @@ export function LoginForm({
     const [isAlertOpen, setIsAlertOpen] = useState(false)
     const [alertErrorList, setAlertErrorList] = useState<string[]>([]);
 
+    const { loginUser, isLoggingIn, authUser } = useAuthStore();
+
     // email regerx for validation
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 
-    // const onValidationCheck = () => {
-    //     let newErrors = {
-    //         rollno: formData.rollno.length <= 3 || formData.rollno.length === 0,
-    //         email: !emailRegex.test(formData.email),
-    //         password: formData.password.length <= 3
-    //     }
-    //     setFormDataError(newErrors);
-    //     console.log(newErrors)
-
-    //     if (newErrors.rollno || newErrors.email || newErrors.password) {
-    //         let errorMessage = "Please fix the following errors:\n";
-
-    //         if (newErrors.rollno) errorMessage += "- Roll number should be at least 3 characters\n";
-    //         if (newErrors.email) errorMessage += "- Please enter a valid email address\n";
-    //         if (newErrors.password) errorMessage += "- Password should be at least 3 characters\n";
-
-    //         setAlertMessage(errorMessage);
-    //         setIsAlertOpen(true);
-    //         return false;
-    //     }
-
-    //     return true;
-    // }
 
     const onValidationCheck = () => {
         let newErrors = {
@@ -71,7 +51,7 @@ export function LoginForm({
             password: formData.password.length <= 3
         }
         setFormDataError(newErrors);
-        console.log(newErrors)
+
 
         if (newErrors.rollno || newErrors.email || newErrors.password) {
             let errorMessages = [];
@@ -98,10 +78,23 @@ export function LoginForm({
 
 
 
-    const onSubmitHandler = (e: FormEvent<HTMLFormElement>) => {
+
+    const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (onValidationCheck()) {
-            console.log(formData);
+        try {
+            if (onValidationCheck()) {
+                const payload = {
+                    rollno: formData.rollno,
+                    email: formData.email,
+                    password: formData.password
+                }
+                const result = await loginUser(payload);
+                console.log("authuser and result", authUser, result)
+            }
+
+
+        } catch (error) {
+            console.log("error occured", error)
         }
     }
 
@@ -136,8 +129,15 @@ export function LoginForm({
                         </div>
                         <Input id="password" type="password" name="password" value={formData.password} onChange={onChangeHandler} />
                     </div>
-                    <Button type="submit" className="w-full !bg-bgPrimary-100">
-                        Login
+                    <Button type="submit" className="w-full !bg-bgPrimary-100" disabled={isLoggingIn}>
+                        {isLoggingIn ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Logging in...
+                            </div>
+                        ) : (
+                            "Login"
+                        )}
                     </Button>
                 </div>
             </form>
