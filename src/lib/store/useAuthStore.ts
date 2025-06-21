@@ -10,7 +10,6 @@ export interface SignUpPayload {
 
 export interface LoginPayload {
     email: string
-    rollno: string
     password: string
 }
 
@@ -19,6 +18,8 @@ export interface AuthStore {
     isCheckingAuth: boolean;
     isSigningUp: boolean;
     isLoggingIn: boolean;
+    isLoggingOut: boolean;
+    skipAuthCheck: boolean; 
 
     loginUser: (payload: LoginPayload) => Promise<void>;
     signUpUser: (payload: SignUpPayload) => Promise<void>;
@@ -31,11 +32,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     isCheckingAuth: true,
     isSigningUp: false,
     isLoggingIn: false,
+    isLoggingOut: false,
+    skipAuthCheck: false,
 
     loginUser: async (payload: LoginPayload) => {
         set({ isLoggingIn: true })
         try {
-            const response = await axiosApiInstance.post("/api/auth/login",
+            const response = await axiosApiInstance.post("/api/auth/student/login",
                 payload,
                 {
                     withCredentials: true,
@@ -73,19 +76,42 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     },
 
     logout: async () => {
+        set({ isLoggingOut: true, skipAuthCheck: true })
         try {
-            await axiosApiInstance.post("/api/auth/logout");
-            set({ authUser: null })
+            await axiosApiInstance.post("/api/auth/logout", {}, {
+                withCredentials: true,
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+              set({ 
+                authUser: null,
+                isLoggingOut: false,
+                isCheckingAuth: false,
+                skipAuthCheck: true 
+            })
         } catch (error) {
-            console.log(`error: ${error}`)
-        }
+            console.error(`Logout error: ${error}`)
+            set({ 
+                authUser: null,
+                isLoggingOut: false,
+                isCheckingAuth: false,
+                skipAuthCheck: true
+            })
+            throw error
+        } 
     },
     checkAuth: async () => {
+        if (get().isLoggingOut || get().skipAuthCheck) return; // Skip checkAuth during logout
+        set({isCheckingAuth:true})
         try {
-            const res = await axiosApiInstance.get("/api/auth/check-auth");
+            const res = await axiosApiInstance.get("/api/auth/check-auth", {
+                withCredentials: true
+            });
             set({ authUser: res.data })
         } catch (error) {
             console.log(`Error in the checkAuth useAuthStore.ts: ${error}`)
+            set({ authUser: null })
         } finally {
             set({ isCheckingAuth: false })
         }

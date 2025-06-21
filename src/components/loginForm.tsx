@@ -10,10 +10,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, UserPlus } from "lucide-react"
 import { useAuthStore } from "../lib/store/useAuthStore"
 
-
-
 interface FormData {
-    rollno: string
     email: string
     password: string
 }
@@ -23,78 +20,67 @@ export function LoginForm({
     ...props
 }: React.ComponentPropsWithoutRef<"form">) {
     const [formData, setFormData] = useState<FormData>({
-        rollno: "",
         email: "",
         password: ""
     })
 
     const [formDataError, setFormDataError] = useState({
-        rollno: false,
         email: false,
         password: false
     })
 
     const [isAlertOpen, setIsAlertOpen] = useState(false)
-    const [alertErrorList, setAlertErrorList] = useState<string[]>([]);
+    const [alertErrorList, setAlertErrorList] = useState<string[]>([])
 
-    const { loginUser, isLoggingIn, authUser } = useAuthStore();
+    const { loginUser, isLoggingIn, authUser } = useAuthStore()
 
-    // email regerx for validation
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-
+    // Email regex for validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
     const onValidationCheck = () => {
         let newErrors = {
-            rollno: formData.rollno.length <= 3 || formData.rollno.length === 0,
             email: !emailRegex.test(formData.email),
             password: formData.password.length <= 3
         }
-        setFormDataError(newErrors);
+        setFormDataError(newErrors)
 
+        if (newErrors.email || newErrors.password) {
+            let errorMessages = []
 
-        if (newErrors.rollno || newErrors.email || newErrors.password) {
-            let errorMessages = [];
+            if (newErrors.email) errorMessages.push("Please enter a valid email address")
+            if (newErrors.password) errorMessages.push("Password should be at least 3 characters")
 
-            if (newErrors.rollno) errorMessages.push("Roll number should be at least 3 characters");
-            if (newErrors.email) errorMessages.push("Please enter a valid email address");
-            if (newErrors.password) errorMessages.push("Password should be at least 3 characters");
-
-            // Set the error list for the alert dialog
-            setAlertErrorList(errorMessages); // You'll need to add this state
-            setIsAlertOpen(true);
-            return false;
+            setAlertErrorList(errorMessages)
+            setIsAlertOpen(true)
+            return false
         }
 
-        return true;
+        return true
     }
 
     const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
+        const { name, value } = e.target
         setFormData((prevData) => ({
             ...prevData, [name]: value
         }))
     }
 
-
-
-
     const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+        e.preventDefault()
+        let payload;
         try {
             if (onValidationCheck()) {
-                const payload = {
-                    rollno: formData.rollno,
+                 payload = {
                     email: formData.email,
                     password: formData.password
                 }
-                const result = await loginUser(payload);
-                console.log("authuser and result", authUser, result)
+                await loginUser(payload)
+                console.log("authUser after login:", authUser)
             }
-
-
         } catch (error) {
-            console.log("error occured", error)
+            console.log("Error occurred during login:", error)
+            setAlertErrorList(["Login failed. Please try again."])
+            setIsAlertOpen(true)
         }
     }
 
@@ -109,10 +95,6 @@ export function LoginForm({
                     </p>
                 </div>
                 <div className="grid gap-6">
-                    <div className="grid gap-2">
-                        <Label htmlFor="rollno" className="">Roll Number</Label>
-                        <Input id="rollno" type="text" name="rollno" value={formData.rollno} onChange={onChangeHandler} placeholder="eg: 211585" maxLength={9} />
-                    </div>
                     <div className="grid gap-2">
                         <Label htmlFor="email">Email</Label>
                         <Input id="email" type="email" name="email" value={formData.email} onChange={onChangeHandler} placeholder="m@example.com" />
@@ -143,7 +125,8 @@ export function LoginForm({
             </form>
             <div className="relative py-4 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                 <span className="relative z-10 bg-background px-2 text-muted-foreground">
-                    Or continue with                </span>
+                    Or continue with
+                </span>
             </div>
             <Button variant="outline" className="w-full" onClick={() => router.push("/sign-up")}>
                 <UserPlus />
@@ -156,7 +139,6 @@ export function LoginForm({
                 errorList={alertErrorList}
                 closeButtonText="OK"
             />
-
         </>
     )
 }

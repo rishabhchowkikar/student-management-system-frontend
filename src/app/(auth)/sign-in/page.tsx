@@ -6,18 +6,20 @@ import { useAuthStore } from "../../../lib/store/useAuthStore"
 
 const page = () => {
     const router = useRouter()
-    const { authUser, checkAuth } = useAuthStore()
+    const { authUser, checkAuth, isCheckingAuth } = useAuthStore()
+
+   
+    useEffect(() => {
+        checkAuth()
+    }, []);
 
     useEffect(() => {
-        const validate = async () => {
-            await checkAuth();
-            if (authUser) {
-                router.replace('/');
-            }
+        // Wait until checkAuth completes
+        if (!isCheckingAuth && authUser) {
+            router.replace('/');
         }
-
-        validate();
-    }, [authUser]);
+    }, [authUser, isCheckingAuth]);
+    
     return (
         <div className='w-full md:w-1/3 flex items-center justify-center bg-white px-4'>
             <div className='w-full max-w-md'>
