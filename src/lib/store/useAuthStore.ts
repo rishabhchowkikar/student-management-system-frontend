@@ -3,15 +3,20 @@ import { axiosApiInstance } from "../api/auth"
 
 export interface SignUpPayload {
     name: string
-    rollno: string
     email: string
     password: string
+    courseId: string  
 }
 
 export interface LoginPayload {
     email: string
     password: string
 }
+
+export interface UpdatePermissionPayload {
+    reason?: string
+}
+
 
 export interface AuthStore {
     authUser: any; // Replace `any` with your actual user type if available
@@ -21,11 +26,84 @@ export interface AuthStore {
     isLoggingOut: boolean;
     skipAuthCheck: boolean; 
 
-    loginUser: (payload: LoginPayload) => Promise<void>;
-    signUpUser: (payload: SignUpPayload) => Promise<void>;
+    loginUser: (payload: LoginPayload) => Promise<any>;
+    signUpUser: (payload: SignUpPayload) => Promise<any>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
+    requestUpdatePermission: (payload: UpdatePermissionPayload) => Promise<any>;
+    getUpdatePermissionStatus: () => Promise<any>;
+    updatePersonalDetails: (formData: FormData) => Promise<any>;
+
 }
+
+export const apiCheckAuth = async () => {
+    try {
+        const res = await axiosApiInstance.get("/api/auth/check-auth", {
+            withCredentials: true
+        });
+        return res.data
+    } catch (error) {
+        console.log(`CheckAuth API error: ${error}`)
+        throw error
+    }
+}
+
+
+export const apiRequestUpdatePermission = async (payload: UpdatePermissionPayload) => {
+    try {
+        const response = await axiosApiInstance.post("/api/auth/request-update-permission",
+            payload,
+            {
+                withCredentials: true,
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+        return response.data
+    } catch (error) {
+        console.log(`Request permission API error: ${error}`)
+        throw error
+    }
+}
+
+export const apiGetUpdatePermissionStatus = async () => {
+    try {
+        const response = await axiosApiInstance.get("/api/auth/update-permission-status", {
+            withCredentials: true
+        });
+        return response.data
+    } catch (error) {
+        console.log(`Get permission status API error: ${error}`)
+        throw error
+    }
+}
+
+export const apiUpdatePersonalDetails = async (formData: FormData) => {
+    try {
+        const response = await axiosApiInstance.put("/api/auth/update-personal-details",
+            formData,
+            {
+                withCredentials: true,
+                headers: {
+                    // Don't set Content-Type for FormData, let browser set it
+                }
+            })
+        return response.data
+    } catch (error) {
+        console.log(`Update personal details API error: ${error}`)
+        throw error
+    }
+}
+
+export const apiGetCoursesForSignup = async () => {
+  try {
+    const response = await axiosApiInstance.get("/api/course/signup-courses");
+    return response.data;
+  } catch (error) {
+    console.log(`Get courses for signup API error: ${error}`);
+    throw error;
+  }
+};
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
     authUser: null,
@@ -115,5 +193,30 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         } finally {
             set({ isCheckingAuth: false })
         }
-    }
+    },
+    requestUpdatePermission: async (payload: UpdatePermissionPayload) => {
+        try {
+            const data = await apiRequestUpdatePermission(payload);
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
+    getUpdatePermissionStatus: async () => {
+        try {
+            const data = await apiGetUpdatePermissionStatus();
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
+     updatePersonalDetails: async (formData: FormData) => {
+        try {
+            const data = await apiUpdatePersonalDetails(formData);
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
 }))
+

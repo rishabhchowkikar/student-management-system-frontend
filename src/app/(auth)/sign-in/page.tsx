@@ -21,8 +21,8 @@ const page = () => {
     }, [authUser, isCheckingAuth]);
     
     return (
-        <div className='w-full md:w-1/3 flex items-center justify-center bg-white px-4'>
-            <div className='w-full max-w-md'>
+        <div className='w-full sm:w-1/2 lg:w-1/3 flex items-center justify-center bg-white px-4'>
+            <div className='w-full'>
                 <LoginForm />
             </div>
         </div>

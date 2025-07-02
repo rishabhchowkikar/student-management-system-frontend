@@ -3,17 +3,28 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChangeEvent, FormEvent, useState } from "react"
-import AlertDialogue from "../components/AlertDialogue"
-import { LogIn } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ChangeEvent, FormEvent, useState, useEffect } from "react"
+import { LogIn, GraduationCap, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from "next/navigation"
-import { signUpUser } from "@/lib/api/auth"
+import { useAuthStore, apiGetCoursesForSignup } from "@/lib/store/useAuthStore"
+import { toast } from 'sonner';
 
 interface FormData {
     name: string
-    rollno: string
     email: string
     password: string
+    confirmPassword: string
+    courseId: string
+}
+
+interface Course {
+    _id: string
+    name: string
+    code: string
+    department: string
+    school: string
+    displayName: string
 }
 
 export function SignUpForm({
@@ -22,44 +33,94 @@ export function SignUpForm({
 }: React.ComponentPropsWithoutRef<"form">) {
     const [formData, setFormData] = useState<FormData>({
         name: "",
-        rollno: "",
         email: "",
-        password: ""
+        password: "",
+        confirmPassword: "",
+        courseId: ""
     })
 
     const [formDataError, setFormDataError] = useState({
         name: false,
-        rollno: false,
         email: false,
-        password: false
+        password: false,
+        confirmPassword: false,
+        courseId: false
     })
 
-    const [isAlertOpen, setIsAlertOpen] = useState(false)
-    const [alertErrorList, setAlertErrorList] = useState<string[]>([])
+    const [showPassword, setShowPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+    
+    // Course related states
+    const [courses, setCourses] = useState<Course[]>([])
+    const [isLoadingCourses, setIsLoadingCourses] = useState(true)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    
+    // Password match validation state
+    const [passwordsMatch, setPasswordsMatch] = useState(true)
 
+    const { signUpUser } = useAuthStore()
+    const router = useRouter()
 
-    // email regerx for validation
+    // Email regex for validation
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
+    // Fetch courses on component mount
+    useEffect(() => {
+        const fetchCourses = async () => {
+            try {
+                setIsLoadingCourses(true)
+                const response = await apiGetCoursesForSignup()
+                
+                if (response.status && response.data) {
+                    setCourses(response.data)
+                    console.log('Courses loaded:', response.data)
+                } else {
+                    toast.error('Failed to load courses. Please refresh the page.')
+                }
+            } catch (error) {
+                console.error('Error fetching courses:', error)
+                toast.error('Failed to load courses. Please check your internet connection.')
+            } finally {
+                setIsLoadingCourses(false)
+            }
+        }
+
+        fetchCourses()
+    }, [])
+
+    // Password match validation
+    useEffect(() => {
+        if (formData.password && formData.confirmPassword) {
+            setPasswordsMatch(formData.password === formData.confirmPassword)
+        } else {
+            setPasswordsMatch(true)
+        }
+    }, [formData.password, formData.confirmPassword])
 
     const onValidationCheck = () => {
         let newErrors = {
             name: formData.name.length === 0 || formData.name.length < 2,
-            rollno: formData.rollno.length <= 3 || formData.rollno.length === 0,
             email: !emailRegex.test(formData.email),
-            password: formData.password.length <= 3
+            password: formData.password.length < 6,
+            confirmPassword: formData.confirmPassword.length === 0 || formData.password !== formData.confirmPassword,
+            courseId: formData.courseId.length === 0
         }
-        setFormDataError(newErrors);
-        if (newErrors.name || newErrors.rollno || newErrors.email || newErrors.password) {
+        
+        setFormDataError(newErrors); 
+        
+        if (newErrors.name || newErrors.email || newErrors.password || newErrors.confirmPassword || newErrors.courseId) {
             let errorMessages = [];
 
             if (newErrors.name) errorMessages.push("Name should not be blank and should be at least 2 characters");
-            if (newErrors.rollno) errorMessages.push("Roll number should be at least 4 characters");
             if (newErrors.email) errorMessages.push("Please enter a valid email address");
-            if (newErrors.password) errorMessages.push("Password should be at least 4 characters");
+            if (newErrors.password) errorMessages.push("Password should be at least 6 characters");
+            if (newErrors.confirmPassword) errorMessages.push("Passwords do not match");
+            if (newErrors.courseId) errorMessages.push("Please select a course");
 
-            setAlertErrorList(errorMessages);
-            setIsAlertOpen(true);
+            toast.error(errorMessages[0], {
+                position: "bottom-right",
+                duration: 3000,
+            });
             return false;
         }
 
@@ -69,90 +130,264 @@ export function SignUpForm({
     const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prevData) => ({
-            ...prevData, [name]: value
+            ...prevData, 
+            [name]: value
         }))
-    }
-
-
-
-    const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        try {
-            if (onValidationCheck()) {
-                const payload = {
-                    name: formData.name,
-                    rollno: formData.rollno,
-                    email: formData.email,
-                    password: formData.password
-                }
-
-                const result = await signUpUser(payload);
-
-                if (result) alert(`login successfull: ${result}`)
-                alert("hello world")
-            }
-        } catch (error: any) {
-            console.error("Signup failed:", error.message);
+        
+        if (formDataError[name as keyof typeof formDataError]) {
+            setFormDataError(prev => ({
+                ...prev,
+                [name]: false
+            }))
         }
     }
 
-    const router = useRouter();
-    return (
-        <>
-            <form className={cn("flex flex-col gap-6", className)} {...props} onSubmit={onSubmitHandler}>
-                <div className="flex flex-col items-start gap-2 text-left">
-                    <h1 className="text-2xl font-bold text-bgPrimary-100">Student SignUp</h1>
-                    <p className="text-balance text-sm text-muted-foreground">
-                        Fill in your details below to create your student account
-                    </p>
-                </div>
-                <div className="grid gap-6">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name" className="">Name</Label>
-                        <Input id="name" type="text" name="name" value={formData.name} onChange={onChangeHandler} placeholder="Full Name" />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="rollno" className="">Roll Number</Label>
-                        <Input id="rollno" type="text" name="rollno" value={formData.rollno} onChange={onChangeHandler} placeholder="eg: 211585" maxLength={9} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" name="email" value={formData.email} onChange={onChangeHandler} placeholder="m@example.com" />
-                    </div>
-                    <div className="grid gap-2">
-                        <div className="flex items-center">
-                            <Label htmlFor="password">Password</Label>
-                            <a
-                                href="#"
-                                className="ml-auto text-sm underline-offset-4 hover:underline"
-                            >
-                                Forgot your password?
-                            </a>
-                        </div>
-                        <Input id="password" type="password" name="password" value={formData.password} onChange={onChangeHandler} />
-                    </div>
-                    <Button type="submit" className="w-full !bg-bgPrimary-100">
-                        Sign-Up
-                    </Button>
-                </div>
-            </form>
-            <div className="relative py-4 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
-                <span className="relative z-10 bg-background px-2 text-muted-foreground">
-                    Or continue with
-                </span>
-            </div>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/sign-in")}>
-                <LogIn />
-                Login
-            </Button>
-            <AlertDialogue
-                open={isAlertOpen}
-                setOpen={setIsAlertOpen}
-                title="Validation Error"
-                errorList={alertErrorList}
-                closeButtonText="Okay"
-            />
+    const onCourseChange = (courseId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            courseId: courseId
+        }))
+        
+        if (formDataError.courseId) {
+            setFormDataError(prev => ({
+                ...prev,
+                courseId: false
+            }))
+        }
+        
+        const selectedCourse = courses.find(course => course._id === courseId)
+        if (selectedCourse) {
+            toast.success(`Course selected: ${selectedCourse.displayName}`, {
+                duration: 2000,
+            });
+        }
+    }
 
-        </>
+    const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        
+        if (!onValidationCheck()) {
+            return;
+        }
+
+        setIsSubmitting(true);
+        
+        try {
+            const payload = {
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                courseId: formData.courseId
+            }
+
+            console.log('Submitting signup payload:', payload);
+            
+            const loadingToast = toast.loading('Creating your account...');
+            
+            const result = await signUpUser(payload);
+
+            toast.dismiss(loadingToast);
+
+            if (result) {
+                toast.success('Account created successfully!', {
+                    description: 'Please complete your profile to continue.',
+                    duration: 4000,
+                });
+                
+                setTimeout(() => {
+                    router.push('/complete-profile');
+                }, 1000);
+            }
+        } catch (error: any) {
+            console.error("Signup failed:", error);
+            
+            toast.error('Signup failed!', {
+                description: error.message || "Please try again or contact support if the problem persists.",
+                duration: 5000,
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-4">
+            <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+                <form className={cn("flex flex-col gap-6", className)} {...props} onSubmit={onSubmitHandler}>
+                    <div className="flex flex-col items-start gap-2 text-left">
+                        <h1 className="text-2xl font-bold text-bgPrimary-100">Student SignUp</h1>
+                        <p className="text-balance text-sm text-muted-foreground">
+                            Fill in your details below to create your student account
+                        </p>
+                    </div>
+                    
+                    <div className="grid gap-6">
+                        {/* Name Field */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="name" className="text-sm font-medium">Full Name *</Label>
+                            <Input 
+                                id="name" 
+                                type="text" 
+                                name="name" 
+                                value={formData.name} 
+                                onChange={onChangeHandler} 
+                                placeholder="Enter your full name"
+                                className={formDataError.name ? 'border-red-500 focus:border-red-500' : ''}
+                                disabled={isSubmitting}
+                            />
+                        </div>
+
+                        {/* Email Field */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="email" className="text-sm font-medium">Email Address *</Label>
+                            <Input 
+                                id="email" 
+                                type="email" 
+                                name="email" 
+                                value={formData.email} 
+                                onChange={onChangeHandler} 
+                                placeholder="student@university.com"
+                                className={formDataError.email ? 'border-red-500 focus:border-red-500' : ''}
+                                disabled={isSubmitting}
+                            />
+                        </div>
+
+                        {/* Course Selection */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="course" className="text-sm font-medium flex items-center">
+                                <GraduationCap className="w-4 h-4 mr-2 text-blue-600" />
+                                Select Course *
+                            </Label>
+                            
+                            {isLoadingCourses ? (
+                                <div className="flex items-center justify-center p-4 border rounded-md">
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                    <span className="ml-2 text-sm text-gray-600">Loading courses...</span>
+                                </div>
+                            ) : (
+                                <Select 
+                                    value={formData.courseId} 
+                                    onValueChange={onCourseChange}
+                                    disabled={isSubmitting}
+                                >
+                                    <SelectTrigger className={`w-full ${formDataError.courseId ? 'border-red-500' : ''}`}>
+                                        <SelectValue placeholder="Choose your course" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {courses.map((course) => (
+                                            <SelectItem key={course._id} value={course._id}>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{course.displayName}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {course.department} • {course.school}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                            
+                            {formData.courseId && (
+                                <p className="text-xs text-green-600">
+                                    ✓ Selected: {courses.find(c => c._id === formData.courseId)?.displayName}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Password Field */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="password" className="text-sm font-medium">Password *</Label>
+                            <div className="relative">
+                                <Input 
+                                    id="password" 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="password" 
+                                    value={formData.password} 
+                                    onChange={onChangeHandler}
+                                    placeholder="Enter your password"
+                                    className={`pr-10 ${formDataError.password ? 'border-red-500 focus:border-red-500' : ''}`}
+                                    disabled={isSubmitting}
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    disabled={isSubmitting}
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                        <Eye className="h-4 w-4 text-gray-400" />
+                                    )}
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500">Password must be at least 6 characters long</p>
+                        </div>
+
+                        {/* Confirm Password Field */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password *</Label>
+                            <div className="relative">
+                                <Input 
+                                    id="confirmPassword" 
+                                    type={showConfirmPassword ? "text" : "password"} 
+                                    name="confirmPassword" 
+                                    value={formData.confirmPassword} 
+                                    onChange={onChangeHandler}
+                                    placeholder="Confirm your password"
+                                    className={`pr-10 ${
+                                        formDataError.confirmPassword ? 'border-red-500 focus:border-red-500' : 
+                                        !passwordsMatch && formData.confirmPassword ? 'border-red-500 focus:border-red-500' : ''
+                                    }`}
+                                    disabled={isSubmitting}
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    disabled={isSubmitting}
+                                >
+                                    {showConfirmPassword ? (
+                                        <EyeOff className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                        <Eye className="h-4 w-4 text-gray-400" />
+                                    )}
+                                </button>
+                            </div>
+                            {formData.confirmPassword && (
+                                <p className={`text-xs ${passwordsMatch ? 'text-green-600' : 'text-red-500'}`}>
+                                    {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
+                                </p>
+                            )}
+                        </div>
+
+                        <Button 
+                            type="submit" 
+                            className="w-full !bg-bgPrimary-100 hover:!bg-bgPrimary-100/90 transition-colors h-11"
+                            disabled={isLoadingCourses || isSubmitting}
+                        >
+                            {isSubmitting ? 'Creating Account...' : isLoadingCourses ? 'Loading...' : 'Create Account'}
+                        </Button>
+                    </div>
+                </form>
+                
+                <div className="relative py-4 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
+                    <span className="relative z-10 bg-background px-2 text-muted-foreground">
+                        Already have an account?
+                    </span>
+                </div>
+                
+                <Button 
+                    variant="outline" 
+                    className="w-full h-11"
+                    onClick={() => router.push("/sign-in")}
+                    disabled={isSubmitting}
+                >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
+                </Button>
+            </div>
+        </div>
     )
 }

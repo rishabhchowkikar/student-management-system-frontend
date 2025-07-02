@@ -7,12 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
 import {
-    LogOut,
-    Menu,
-    X,
     User,
     Phone,
     Mail,
@@ -29,12 +24,9 @@ import {
     Award,
     Clock,
     Edit3,
-    Loader2,
-    XCircle,
     School,
     Building,
-    UserCheck,
-    CalendarDays,
+    
     CheckCircle
 } from 'lucide-react'
 
@@ -70,6 +62,11 @@ const Page = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [isLogoutConfirming, setIsLogoutConfirming] = useState(false)
 
+    const handleEditProfile = () => {
+  router.push('/complete-profile');
+};
+
+
     useEffect(() => {
         const validateAuth = async () => {
             setLoading(true)
@@ -94,79 +91,11 @@ const Page = () => {
         if (!loading && !authUser && !isLoggingOut && !isLogoutConfirming) {
             router.replace("/sign-in")
         }
-
         console.log(courseData)
     }, [loading, authUser, isLoggingOut, isLogoutConfirming, router])
 
-    const handleLogoutConfirmation = () => {
-        setIsLogoutConfirming(true)
-        toast.custom((t: any) => (
-            <div className="flex flex-col items-start p-6 rounded-xl shadow-xl border border-gray-200 bg-white w-96">
-                <div className="flex items-center gap-3 w-full mb-3">
-                    <LogOut className="text-red-600 w-5 h-5" />
-                    <h4 className="text-lg font-semibold text-gray-900">
-                        Confirm Logout
-                    </h4>
-                </div>
-                <p className="text-sm text-gray-600 mb-5">
-                    Are you sure you want to logout? You will be redirected to the sign-in page.
-                </p>
-                <div className="flex flex-col w-full gap-2">
-                    <Button
-                        className="w-full bg-[#002147] hover:bg-[#002147]/90"
-                        onClick={() => {
-                            toast.dismiss(t.id)
-                            handleLogout()
-                        }}
-                    >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Logout
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                            toast.dismiss(t.id)
-                            setIsLogoutConfirming(false)
-                        }}
-                    >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Cancel
-                    </Button>
-                </div>
-            </div>
-        ))
-    }
 
-    const handleLogout = async () => {
-        setIsLogoutConfirming(false)
-        toast.dismiss()
-        const loadingToast = toast.loading("Logging out...", {
-            description: "Please wait while we sign you out.",
-            position: "bottom-right",
-        })
-        try {
-            await logout()
-            toast.dismiss(loadingToast)
-            toast.success("Logged out successfully!", {
-                position: "bottom-right",
-                duration: 2000,
-            })
-            setTimeout(() => {
-                router.replace("/sign-in")
-            }, 500)
-        } catch (error) {
-            toast.dismiss(loadingToast)
-            toast.error("Failed to logout. Please try again.", {
-                position: "bottom-right",
-            })
-            console.error("Logout failed:", error)
-        }
-    }
 
-    const toggleSidebar = () => {
-        setIsSidebarOpen(!isSidebarOpen)
-    }
 
     if (loading || (isLoggingOut && !isLogoutConfirming)) {
         return (
@@ -187,14 +116,7 @@ const Page = () => {
 
     const student: StudentData = authUser.data
 
-    const sidebarMenuItems = [
-        { icon: User, label: "Profile", active: true },
-        { icon: BookOpen, label: "Courses", active: false },
-        { icon: Award, label: "Assignments", active: false },
-        { icon: Clock, label: "Attendance", active: false },
-        { icon: Bell, label: "Notifications", active: false },
-        { icon: Settings, label: "Settings", active: false },
-    ]
+
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('en-IN', {
@@ -211,76 +133,17 @@ const Page = () => {
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
             {/* Fixed Sidebar */}
-            <div
-               className={`fixed top-20 left-0 z-40 w-72 bg-white shadow-xl border-r border-gray-200 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out h-[calc(100vh-5rem)]`}
-            >
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                            <Avatar className="h-12 w-12 ring-2 ring-white/20">
-                                <AvatarImage src={student.photo || "/avatar-placeholder.png"} alt="Student Avatar" />
-                                <AvatarFallback className="bg-white/20 text-white font-semibold">
-                                    {getInitials(student.name)}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-semibold text-lg">{student.name.split(' ')[0]}</p>
-                                <p className="text-sm opacity-80">Student</p>
-                            </div>
-                        </div>
-                        <Button variant="ghost" className="md:hidden p-2 text-white hover:bg-white/10" onClick={toggleSidebar}>
-                            <X className="h-5 w-5" />
-                        </Button>
-                    </div>
-                    <div className="text-sm opacity-90">
-                        <p>Roll No: {student.rollno}</p>
-                        <p className="truncate">{student.email}</p>
-                    </div>
-                </div>
-                <nav className="p-4 space-y-2">
-                    {sidebarMenuItems.map((item) => (
-                        <Button
-                            key={item.label}
-                            variant={item.active ? "default" : "ghost"}
-                            className={`w-full justify-start gap-3 h-11 ${item.active
-                                    ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                                    : "text-gray-600 hover:bg-gray-100"
-                                }`}
-                        >
-                            <item.icon className="h-5 w-5" />
-                            {item.label}
-                        </Button>
-                    ))}
-                    <Separator className="my-4" />
-                    <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-3 h-11 text-red-600 hover:bg-red-50 hover:text-red-700"
-                        onClick={handleLogoutConfirmation}
-                        disabled={isLoggingOut}
-                    >
-                        <LogOut className="h-5 w-5" />
-                        {isLoggingOut ? "Logging out..." : "Logout"}
-                    </Button>
-                </nav>
-            </div>
+           
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col md:ml-72">
+            <div className="flex-1 flex flex-col">
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto pt-20">
+                <div className="flex-1 overflow-y-auto">
                     <div className="max-w-5xl mx-auto space-y-6 p-4 md:p-6">
                         {/* Header */}
                         <div className="bg-white shadow-sm border-b border-gray-200 p-4 md:p-6 rounded-lg">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center space-x-4">
-                                    <Button
-                                        variant="ghost"
-                                        className="md:hidden p-2"
-                                        onClick={toggleSidebar}
-                                        aria-label="Toggle Sidebar"
-                                    >
-                                        <Menu className="h-6 w-6 text-gray-600" />
-                                    </Button>
                                     <div>
                                         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                                             Welcome back, {student.name.split(' ')[0]}!
@@ -291,7 +154,7 @@ const Page = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-3">
-                                    <Button variant="outline" size="sm" className="hidden md:flex">
+                                    <Button variant="outline" size="sm" className="hidden md:flex" onClick={handleEditProfile}>
                                         <Edit3 className="h-4 w-4 mr-2" />
                                         Edit Profile
                                     </Button>
@@ -468,7 +331,7 @@ const Page = () => {
                                             </div>
                                             <p className="text-gray-900 font-semibold">{courseData.school}</p>
                                         </div>
-                                        <div className="p-4 bg-white rounded-lg border border-indigo-200 shadow-sm">
+                                        {/* <div className="p-4 bg-white rounded-lg border border-indigo-200 shadow-sm">
                                             <div className="flex items-center space-x-2 mb-2">
                                                 <CalendarDays className="h-4 w-4 text-indigo-600" />
                                                 <span className="text-sm text-indigo-600 font-medium">Duration</span>
@@ -488,18 +351,18 @@ const Page = () => {
                                                 <span className="text-sm text-indigo-600 font-medium">Course Started</span>
                                             </div>
                                             <p className="text-gray-900 font-semibold">{formatDate(courseData.createdAt)}</p>
-                                        </div>
+                                        </div> */}
                                     </div>
                                     
-                                    <div className="p-4 bg-white rounded-lg border border-indigo-200 shadow-sm mb-6">
+                                    {/* <div className="p-4 bg-white rounded-lg border border-indigo-200 shadow-sm mb-6">
                                         <div className="flex items-center space-x-2 mb-3">
                                             <BookOpen className="h-4 w-4 text-indigo-600" />
                                             <span className="text-sm text-indigo-600 font-medium">Course Description</span>
                                         </div>
                                         <p className="text-gray-700">{courseData.description}</p>
-                                    </div>
+                                    </div> */}
 
-                                    {courseData.assignedTeachers && courseData.assignedTeachers.length > 0 && (
+                                    {/* {courseData.assignedTeachers && courseData.assignedTeachers.length > 0 && (
                                         <div className="p-4 bg-white rounded-lg border border-indigo-200 shadow-sm">
                                             <div className="flex items-center space-x-2 mb-3">
                                                 <UserCheck className="h-4 w-4 text-indigo-600" />
@@ -521,7 +384,7 @@ const Page = () => {
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
                                 </CardContent>
                             </Card>
                         )}
@@ -569,13 +432,7 @@ const Page = () => {
                     </div>
                 </div>
 
-                {/* Mobile Sidebar Overlay */}
-                {isSidebarOpen && (
-                    <div
-                        className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-                        onClick={toggleSidebar}
-                    />
-                )}
+                
             </div>
         </div>
     )

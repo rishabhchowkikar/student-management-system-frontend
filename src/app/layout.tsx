@@ -2,6 +2,8 @@ import Navbar from "@/components/Navbar";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,11 +27,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js"></Script>
       <body className={`${geistSans.variable} ${geistMono.variable} `}>
         <div className="relative">
           <Navbar />
         </div>
         {children}
+        <div>
+           <Toaster
+        position="bottom-left"
+        expand={true}
+        visibleToasts={4}
+        closeButton={true}
+        richColors={true}
+        theme="light" 
+        duration={5000}
+      />
+        </div>
       </body>
     </html>
   );

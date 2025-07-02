@@ -7,7 +7,7 @@ interface Teacher {
   _id: string;
   name: string;
   email: string;
-  phone?: string; // Optional to match population
+  phone?: string; 
 }
 
 
@@ -29,17 +29,20 @@ interface Course {
 
 // Define the API response structure (student-specific)
 interface CourseResponse {
-  data: Course; // Single course for student
+  data: Course; 
   status: boolean;
 }
 
 // Define the store's state and actions
 interface CourseStore {
-  courseData: Course | null; // Single course for student
+  courseData: Course | null; 
   loading: boolean;
   error: string | null;
-  fetchCourseData: () => Promise<void>; // No parameters needed
+  isSidebarOpen: boolean;
+  fetchCourseData: () => Promise<void>; 
   clearCourseData: () => void;
+  handleToggleSidebar: () => void; 
+  setSidebarClose: (open: boolean) => void; 
 }
 
 // Create the Zustand store
@@ -47,6 +50,7 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
   courseData: null,
   loading: false,
   error: null,
+  isSidebarOpen:false,
 
   // Function to fetch course data for the logged-in student
   fetchCourseData: async () => {
@@ -72,5 +76,15 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
   // Function to clear course data (e.g., on logout)
   clearCourseData: () => {
     set({ courseData: null, loading: false, error: null });
+  },
+
+ // Function to toggle sidebar state
+  handleToggleSidebar: () => {
+    set((state) => ({ isSidebarOpen: !state.isSidebarOpen }));
+  },
+
+  // Function to set sidebar state directly
+  setSidebarClose: (open: boolean) => {
+    set({ isSidebarOpen: open });
   },
 }));

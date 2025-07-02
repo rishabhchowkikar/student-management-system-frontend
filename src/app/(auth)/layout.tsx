@@ -26,7 +26,7 @@ export default function RootLayout({
         position: "relative" as const, // Ensure the background div is positioned relative to the main element
     };
     return (
-        <main className="flex h-full w-full justify-center my-auto" style={mainStyle}>
+        <main className="flex h-full w-full justify-center min-h-screen overflow-y-auto" style={mainStyle}>
             <div style={backgroundStyle}></div>
             {children}
             <div className="auth-asset flex-1 flex-col w-full">
@@ -37,7 +37,6 @@ export default function RootLayout({
                 <h2 className="text-2xl font-bold text-center text-white">
                     हरियाणा केंद्रीय विश्वविद्यालय</h2>
             </div>
-
         </main>
     );
 }
