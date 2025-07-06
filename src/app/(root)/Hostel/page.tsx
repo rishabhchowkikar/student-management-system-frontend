@@ -1,8 +1,12 @@
 "use client"
+import { pdf } from '@react-pdf/renderer';
 import React, { useEffect, useState } from 'react';
 import { useHostelStore } from '@/lib/store/useHostelStore';
 import { useAuthStore } from '@/lib/store/useAuthStore';
 import HostelPaymentCard from '@/components/HostePaymentCard';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import InvoiceTemplate from "@/components/InvoiceTemplate"
 import { 
   Building2, 
   MapPin, 
@@ -19,33 +23,112 @@ import {
   CreditCard,
   RefreshCw,
   Home,
-  Sparkles
+  Sparkles,
+  Download,
+  Calendar,
+  Receipt
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const HostelTab: React.FC = () => {
   const { 
     hostelData, 
-    isLoadingHostel, 
+    paymentHistory,
+    isLoadingHostel,
+    isLoadingHistory, 
     error, 
-    getHostelDetails 
+    getHostelDetails,
+    getPaymentHistory
   } = useHostelStore();
   
-  const { authUser } = useAuthStore();
+  const { authUser,checkAuth } = useAuthStore();
   const [showPayment, setShowPayment] = useState(false);
+  const [activeTab, setActiveTab] = useState("current");
 
   useEffect(() => {
-    getHostelDetails();
-  }, []);
+    const initializeData = async () => {
+      if (!authUser) {
+        await checkAuth();
+      }
+      getHostelDetails();
+      getPaymentHistory();
+    };
+
+    initializeData();
+    
+  }, []); 
+
+
+  useEffect(() => {
+    if (authUser) {
+      getHostelDetails();
+      getPaymentHistory();
+    }
+  }, [authUser?._id]);
 
   const handlePaymentSuccess = () => {
     setShowPayment(false);
-    getHostelDetails(); // Refresh hostel data
+    getHostelDetails();
+    getPaymentHistory();
   };
 
-  if (isLoadingHostel) {
+const downloadInvoice = async (paymentId: string, academicYear: string) => {
+  try {
+    const payment = paymentHistory?.find(p => p.razorpayPaymentId === paymentId);
+    
+    if (!payment || !authUser?.data) {
+      toast.error("Payment details not found");
+      return;
+    }
+
+    // Prepare invoice data
+    const invoiceData = {
+      paymentId: paymentId,
+      academicYear: academicYear,
+      studentName: authUser.data.name,
+      rollNumber: authUser.data.rollno,
+      email: authUser.data.email,
+      course: `${authUser.data.courseId.name} (${authUser.data.courseId.code})`,
+      department: authUser.data.courseId.department,
+      hostelName: payment.hostelName,
+      roomNumber: payment.roomNumber,
+      paymentAmount: payment.paymentAmount,
+      paymentDate: payment.paymentDate,
+      // You can adjust these values based on your actual fee structure
+      hostelFee: Math.floor(payment.paymentAmount * 0.7), // 70% of total
+      maintenanceFee: Math.floor(payment.paymentAmount * 0.2), // 20% of total
+      securityDeposit: Math.floor(payment.paymentAmount * 0.1), // 10% of total
+      discount: 0,
+      tax: 0,
+    };
+
+    // Generate PDF
+    const blob = await pdf(<InvoiceTemplate data={invoiceData} />).toBlob();
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hostel-invoice-${academicYear}-${paymentId.slice(-8)}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success("Invoice downloaded successfully!");
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    toast.error("Failed to generate invoice PDF");
+  }
+};
+
+  if (isLoadingHostel && !hostelData) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading hostel information...</p>
+        </div>
       </div>
     );
   }
@@ -57,23 +140,19 @@ const HostelTab: React.FC = () => {
 
   if (error || !hostelData) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full">
-          {/* Enhanced Card Container */}
-          <div className="relative bg-gradient-to-br from-white via-gray-50 to-blue-50 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-            
-            {/* Decorative Background Elements */}
+          <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
+            {/* Decorative elements */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
             <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-orange-100 to-pink-100 rounded-full translate-y-12 -translate-x-12 opacity-30"></div>
             
             <div className="relative z-10 p-8 text-center">
-              {/* Enhanced Icon Container */}
               <div className="relative mx-auto mb-6">
                 <div className="absolute inset-0 bg-orange-200 rounded-full animate-ping opacity-20"></div>
                 <div className="relative flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 border-4 border-white shadow-lg mx-auto">
                   <AlertCircle className="h-10 w-10 text-orange-600" />
                 </div>
-                {/* Floating sparkles */}
                 <div className="absolute -top-2 -right-2 text-yellow-400">
                   <Sparkles className="h-4 w-4 animate-pulse" />
                 </div>
@@ -82,82 +161,45 @@ const HostelTab: React.FC = () => {
                 </div>
               </div>
 
-              {/* Enhanced Title */}
               <h3 className="text-2xl font-bold text-gray-900 mb-3 tracking-tight">
                 No Hostel Allocation Found
               </h3>
               
-              {/* Enhanced Description */}
               <div className="bg-white bg-opacity-60 backdrop-blur-sm rounded-lg p-4 mb-8 border border-gray-100">
                 <p className="text-gray-600 leading-relaxed">
                   {error || "You haven't been allocated a hostel room yet. Complete your payment to proceed with room allocation."}
                 </p>
               </div>
               
-              {/* Enhanced Action Buttons */}
               {authUser?.data?.want_to_apply_for_hostel ? (
                 <div className="space-y-4">
-                  {/* Primary Payment Button */}
                   <button 
                     onClick={() => setShowPayment(true)}
-                    className="group relative w-full overflow-hidden bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-green-300"
+                    className="group relative w-full overflow-hidden bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300"
                   >
-                    {/* Button shine effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                    
                     <div className="relative flex items-center justify-center">
-                      <div className="bg-white bg-opacity-20 rounded-full p-2 mr-3">
-                        <CreditCard className="h-5 w-5" />
-                      </div>
+                      <CreditCard className="h-5 w-5 mr-3" />
                       <span className="text-lg">Pay Hostel Fees</span>
-                      <div className="ml-3 flex space-x-1">
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div>
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce delay-100"></div>
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce delay-200"></div>
-                      </div>
                     </div>
                   </button>
                   
-                  {/* Secondary Refresh Button */}
                   <button 
                     onClick={getHostelDetails}
-                    className="group w-full bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-gray-200"
+                    className="w-full bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transition-all duration-200"
                   >
-                    <div className="flex items-center justify-center">
-                      <RefreshCw className="h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                      <span>Refresh Status</span>
-                    </div>
+                    <RefreshCw className="h-4 w-4 mr-2 inline" />
+                    Refresh Status
                   </button>
                 </div>
               ) : (
-                /* Single Refresh Button for users who haven't applied */
                 <button 
                   onClick={getHostelDetails}
-                  className="group relative overflow-hidden bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                  className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                  
-                  <div className="relative flex items-center justify-center">
-                    <div className="bg-white bg-opacity-20 rounded-full p-2 mr-3">
-                      <RefreshCw className="h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
-                    </div>
-                    <span className="text-lg">Check Status</span>
-                  </div>
+                  <RefreshCw className="h-5 w-5 mr-3 inline" />
+                  Check Status
                 </button>
               )}
-
-              {/* Additional Info */}
-              <div className="mt-6 flex items-center justify-center space-x-4 text-xs text-gray-500">
-                <div className="flex items-center">
-                  <Home className="h-3 w-3 mr-1" />
-                  <span>Hostel Services</span>
-                </div>
-                <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
-                <div className="flex items-center">
-                  <CreditCard className="h-3 w-3 mr-1" />
-                  <span>Secure Payment</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -166,169 +208,258 @@ const HostelTab: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Hostel Status Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Building2 className="h-6 w-6 text-blue-600 mr-2" />
-            Hostel Information
-          </h2>
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-            hostelData.allocated 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-red-100 text-red-800'
-          }`}>
-            {hostelData.allocated ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Allocated
-              </>
-            ) : (
-              <>
-                <XCircle className="h-4 w-4 mr-1" />
-                Not Allocated
-              </>
-            )}
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
 
-        {/* Hostel Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center">
-              <Building2 className="h-8 w-8 text-blue-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-blue-900">Hostel Name</p>
-                <p className="text-lg font-semibold text-blue-700">{hostelData.hostelName}</p>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex justify-center mb-8">
+    <TabsList className="inline-flex h-12 items-center justify-center rounded-2xl bg-white p-1 text-gray-600 shadow-lg border border-gray-200 w-auto">
+      <TabsTrigger 
+        value="current" 
+        className="inline-flex items-center justify-center whitespace-nowrap rounded-xl px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-100 data-[state=active]:hover:bg-gradient-to-r data-[state=active]:hover:from-blue-600 data-[state=active]:hover:to-blue-700"
+      >
+        <Building2 className="h-4 w-4 mr-2" />
+        Current Hostel
+      </TabsTrigger>
+      <TabsTrigger 
+        value="payments" 
+        className="inline-flex items-center justify-center whitespace-nowrap rounded-xl px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-green-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-100 data-[state=active]:hover:bg-gradient-to-r data-[state=active]:hover:from-green-600 data-[state=active]:hover:to-green-700"
+      >
+        <Receipt className="h-4 w-4 mr-2" />
+        Payment History
+      </TabsTrigger>
+    </TabsList>
+  </div>
+
+          {/* Current Hostel Tab */}
+          <TabsContent value="current" className="space-y-8">
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white bg-opacity-20 rounded-2xl">
+                      <Building2 className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Hostel Information</h2>
+                      <p className="text-blue-100">Your current accommodation details</p>
+                    </div>
+                  </div>
+                  <div className={`px-4 py-2 rounded-full font-semibold text-sm ${
+                    hostelData.allocated 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {hostelData.allocated ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-1 inline" />
+                        Allocated
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 mr-1 inline" />
+                        Not Allocated
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8">
+                {/* Hostel Details Grid - Enhanced */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <div className="group bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-blue-500 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+                        <Building2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-blue-900 mb-1">Hostel Name</p>
+                        <p className="text-lg font-bold text-blue-700">{hostelData.hostelName}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="group bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 border border-green-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-green-500 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+                        <Hash className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-green-900 mb-1">Room Number</p>
+                        <p className="text-lg font-bold text-green-700">{hostelData.roomNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 border border-purple-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-purple-500 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+                        <MapPin className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-purple-900 mb-1">Floor</p>
+                        <p className="text-lg font-bold text-purple-700">{hostelData.floor}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="group bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 border border-orange-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-orange-500 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+                        <Bed className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-orange-900 mb-1">Room Type</p>
+                        <p className="text-lg font-bold text-orange-700">{hostelData.roomType}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Student Information - Enhanced */}
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border border-gray-200">
+                  <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                    <div className="p-2 bg-blue-500 rounded-lg">
+                      <User className="h-5 w-5 text-white" />
+                    </div>
+                    Student Details
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[
+                      { icon: User, label: "Student Name", value: hostelData.userId.name },
+                      { icon: Hash, label: "Roll Number", value: hostelData.userId.rollno },
+                      { icon: Mail, label: "Email Address", value: hostelData.userId.email },
+                      { icon: GraduationCap, label: "Course", value: `${hostelData.userId.courseId.name} (${hostelData.userId.courseId.code})` },
+                      { icon: Users, label: "Department", value: hostelData.userId.courseId.department },
+                      { icon: School, label: "School", value: hostelData.userId.courseId.school },
+                    ].map((item, index) => (
+                      <div key={index} className="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-2">
+                          <item.icon className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-600">{item.label}</span>
+                        </div>
+                        <p className="text-gray-900 font-semibold">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    onClick={getHostelDetails}
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Data
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="bg-green-50 rounded-lg p-4">
-            <div className="flex items-center">
-              <Hash className="h-8 w-8 text-green-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-green-900">Room Number</p>
-                <p className="text-lg font-semibold text-green-700">{hostelData.roomNumber}</p>
+          {/* Payment History Tab */}
+          <TabsContent value="payments" className="space-y-8">
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-8 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white bg-opacity-20 rounded-2xl">
+                      <Receipt className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Payment History</h2>
+                      <p className="text-green-100">Your hostel fee payment records</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={getPaymentHistory}
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoadingHistory}
+                    className="bg-white bg-opacity-20 border-white border-opacity-30 text-white hover:bg-white hover:bg-opacity-30"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-8">
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-200 border-t-green-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading payment history...</p>
+                    </div>
+                  </div>
+                ) : paymentHistory && paymentHistory.length > 0 ? (
+                  <div className="space-y-6">
+                    {paymentHistory.map((payment) => (
+                      <div key={payment._id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-300">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4 mb-4">
+                              <div className="p-3 bg-green-500 rounded-xl">
+                                <Calendar className="h-5 w-5 text-white" />
+                              </div>
+                              <div>
+                                <h4 className="text-lg font-bold text-gray-900">Academic Year: {payment.academicYear}</h4>
+                                <p className="text-green-600 font-semibold text-lg">₹{payment.paymentAmount.toLocaleString()}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                <span className="font-medium text-gray-600">Room:</span>
+                                <p className="font-semibold text-gray-900">{payment.roomNumber}</p>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                <span className="font-medium text-gray-600">Hostel:</span>
+                                <p className="font-semibold text-gray-900">{payment.hostelName}</p>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                <span className="font-medium text-gray-600">Payment Date:</span>
+                                <p className="font-semibold text-gray-900">{new Date(payment.paymentDate).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 bg-white rounded-lg p-3 border border-gray-200">
+                              <span className="text-xs text-gray-500">Payment ID: </span>
+                              <span className="font-mono text-xs text-gray-700">{payment.razorpayPaymentId}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="lg:ml-6">
+                            <Button
+                              onClick={() => downloadInvoice(payment.razorpayPaymentId, payment.academicYear)}
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                            >
+                              <Download className="h-4 w-4 mr-2" /> Payment Receipt
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
+                      <Receipt className="h-12 w-12 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No Payment History</h3>
+                    <p className="text-gray-600">You haven't made any hostel payments yet.</p>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center">
-              <MapPin className="h-8 w-8 text-purple-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-purple-900">Floor</p>
-                <p className="text-lg font-semibold text-purple-700">{hostelData.floor}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-orange-50 rounded-lg p-4">
-            <div className="flex items-center">
-              <Bed className="h-8 w-8 text-orange-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-orange-900">Room Type</p>
-                <p className="text-lg font-semibold text-orange-700">{hostelData.roomType}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Student Information Table */}
-        <div className="bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <User className="h-5 w-5 text-gray-600 mr-2" />
-            Student Details
-          </h3>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Field
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Information
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <User className="h-4 w-4 text-gray-500 mr-2" />
-                    Student Name
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.name}
-                  </td>
-                </tr>
-                
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <Hash className="h-4 w-4 text-gray-500 mr-2" />
-                    Roll Number
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.rollno}
-                  </td>
-                </tr>
-                
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <Mail className="h-4 w-4 text-gray-500 mr-2" />
-                    Email Address
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.email}
-                  </td>
-                </tr>
-                
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <GraduationCap className="h-4 w-4 text-gray-500 mr-2" />
-                    Course
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.courseId.name} ({hostelData.userId.courseId.code})
-                  </td>
-                </tr>
-                
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <Users className="h-4 w-4 text-gray-500 mr-2" />
-                    Department
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.courseId.department}
-                  </td>
-                </tr>
-                
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                    <School className="h-4 w-4 text-gray-500 mr-2" />
-                    School
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {hostelData.userId.courseId.school}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end space-x-3 mt-6">
-          <button 
-            onClick={getHostelDetails}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-          >
-            Refresh Data
-          </button>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -21,6 +21,11 @@ export interface HostelData {
     hostelName: string;
     roomNumber: string;
     roomType: string;
+    academicYear: string;
+    paymentAmount: number;
+    paymentDate: string;
+    razorpayPaymentId: string;
+    paymentStatus: string;
     __v: number;
 }
 
@@ -29,20 +34,30 @@ export interface HostelApiResponse {
     status: boolean;
 }
 
+export interface HostelPaymentHistoryResponse {
+    data: HostelData[];
+    status: boolean;
+}
+
 export interface HostelStore {
     hostelData: HostelData | null;
+    paymentHistory: HostelData[] | null;
     isLoadingHostel: boolean;
+    isLoadingHistory: boolean;
     isUpdatingHostel: boolean;
     error: string | null;
     
     getHostelDetails: () => Promise<void>;
+    getPaymentHistory: () => Promise<void>;
     clearHostelData: () => void;
     setError: (error: string | null) => void;
 }
 
 export const useHostelStore = create<HostelStore>((set, get) => ({
     hostelData: null,
+    paymentHistory: null,
     isLoadingHostel: false,
+    isLoadingHistory: false,
     isUpdatingHostel: false,
     error: null,
 
@@ -70,16 +85,10 @@ export const useHostelStore = create<HostelStore>((set, get) => ({
         } catch (error: any) {
             console.error(`Error fetching hostel details: ${error}`);
             
-            // Handle different error scenarios
             if (error.response?.status === 404) {
                 set({ 
                     hostelData: null,
                     error: "No hostel allocation found"
-                });
-            } else if (error.response?.status === 401) {
-                set({ 
-                    hostelData: null,
-                    error: "Unauthorized access"
                 });
             } else {
                 set({ 
@@ -92,11 +101,52 @@ export const useHostelStore = create<HostelStore>((set, get) => ({
         }
     },
 
+    getPaymentHistory: async () => {
+        set({ isLoadingHistory: true, error: null });
+        try {
+            const response = await axiosApiInstance.get("/api/hostel/payment-history", {
+                withCredentials: true,
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+            
+            if (response.data.status) {
+                set({ 
+                    paymentHistory: response.data.data,
+                    error: null
+                });
+            } else {
+                set({ 
+                    paymentHistory: null,
+                    error: "Failed to fetch payment history"
+                });
+            }
+        } catch (error: any) {
+            console.error(`Error fetching payment history: ${error}`);
+            if (error.response?.status === 404) {
+                set({ 
+                    paymentHistory: [],
+                    error: null
+                });
+            } else {
+                set({ 
+                    paymentHistory: null,
+                    error: error.response?.data?.message || "Failed to fetch payment history"
+                });
+            }
+        } finally {
+            set({ isLoadingHistory: false });
+        }
+    },
+
     clearHostelData: () => {
         set({ 
             hostelData: null,
+            paymentHistory: null,
             error: null,
             isLoadingHostel: false,
+            isLoadingHistory: false,
             isUpdatingHostel: false
         });
     },

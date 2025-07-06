@@ -10,17 +10,18 @@ import {
     LogOut,
     X,
     User,
-    Settings,
     BookOpen,
     Clock,
     XCircle,
     Bed,
     CheckCheck,
-    CalendarCheck2
+    CalendarCheck2,
+    Landmark,
+    TicketCheck,
+    ReceiptText
 } from 'lucide-react'
 import { useCourseStore } from '@/lib/store/useCourseStore';
 import { usePathname } from 'next/navigation'
-
 
 const Sidebar: React.FC = () => { 
     const { authUser, logout, isLoggingOut } = useAuthStore()
@@ -37,7 +38,9 @@ const Sidebar: React.FC = () => {
         { icon: Clock, label: "Attendance", route: "/attendance" },
         { icon: CheckCheck, label: "Marks", route: "/marks" },
         { icon: CalendarCheck2, label: "Time Table", route: "/timetable" },
-        { icon: Settings, label: "Settings", route: "/settings" },
+        {icon: ReceiptText, label:"Fees", route:"/course-fees"},
+        { icon: Landmark, label: "Examination Form", route: "/exam" },
+        { icon: TicketCheck, label: "Bus Pass", route: "/bus-pass" },
     ]
 
     const getInitials = (name: string) => {
@@ -112,7 +115,6 @@ const Sidebar: React.FC = () => {
 
     return (
         <>
-            {/* Fixed Sidebar */}
             <div
                 className={`fixed top-0 left-0 w-72 bg-white shadow-xl border-r border-gray-200 transform ${
                     isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -144,7 +146,6 @@ const Sidebar: React.FC = () => {
                                 </>
                             )}
                         </div>
-                        {/* UPDATED: Use setSidebarClose instead of onClose */}
                         <Button 
                             onClick={() => setSidebarClose(false)} 
                             variant="ghost" 
@@ -176,7 +177,7 @@ const Sidebar: React.FC = () => {
                                 variant="ghost"
                                 onClick={() => {
                                     router.push(item.route)
-                                    setSidebarClose(false) // Close sidebar after navigation
+                                    setSidebarClose(false)
                                 }}
                                 className={`
                                     w-full justify-start gap-3 h-11
@@ -200,12 +201,10 @@ const Sidebar: React.FC = () => {
                     </Button>
                 </nav>
             </div>
-
-            {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-                    onClick={() => setSidebarClose(false)} // UPDATED: Use setSidebarClose
+                    onClick={() => setSidebarClose(false)}
                 />
             )}
         </>

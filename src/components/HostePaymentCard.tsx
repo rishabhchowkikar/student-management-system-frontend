@@ -1,5 +1,7 @@
 "use client"
 import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '@/lib/store/useAuthStore';
+import { axiosApiInstance } from '@/lib/api/auth';
 import { 
   CreditCard,
   IndianRupee,
@@ -10,12 +12,14 @@ import {
   Clock,
   Snowflake
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface HostelPaymentCardProps {
   onPaymentSuccess: () => void;
 }
 
 const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess }) => {
+  const { authUser } = useAuthStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRoomType, setSelectedRoomType] = useState<'Normal' | 'AC'>('Normal');
   const [pendingPayment, setPendingPayment] = useState<any>(null);
@@ -33,108 +37,101 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
 
   const checkPendingPayment = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/check-pending`, {
-        method: 'GET',
+      const response = await axiosApiInstance.get('/api/payment/check-pending', {
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        }
       });
 
-      const data = await response.json();
-      
-      if (data.success && data.hasPendingPayment) {
-        setPendingPayment(data);
-        setSelectedRoomType(data.roomType);
+      if (response.data.success && response.data.hasPendingPayment) {
+        setPendingPayment(response.data);
+        setSelectedRoomType(response.data.roomType);
       }
     } catch (error) {
       console.error('Error checking pending payment:', error);
+      // Don't show error for this, as it's optional functionality
     } finally {
       setIsLoading(false);
     }
   };
 
   const handlePayment = async (isResume = false) => {
+    if (!authUser?.data) {
+      toast.error('Please login to continue');
+      return;
+    }
+
     setIsProcessing(true);
+    
     try {
       let orderData;
 
       if (isResume && pendingPayment) {
         // Resume existing payment
         orderData = {
-          success: true,
-          order: pendingPayment.order
+          status: true,
+          orderId: pendingPayment.orderId,
+          amount: pendingPayment.amount,
+          currency: 'INR'
         };
       } else {
         // Create new payment order
-        const orderResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/create-order`, {
-          method: 'POST',
+        const orderResponse = await axiosApiInstance.post('/api/payment/create-order', {
+          amount: hostelFees[selectedRoomType],
+          roomType: selectedRoomType
+        }, {
+          withCredentials: true,
           headers: {
             'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            amount: hostelFees[selectedRoomType],
-            roomType: selectedRoomType
-          })
+          }
         });
 
-        if (!orderResponse.ok) {
-          const errorText = await orderResponse.text();
-          throw new Error(`Failed to create order: ${orderResponse.status} ${errorText}`);
+        if (!orderResponse.data.status) {
+          throw new Error(orderResponse.data.message || 'Failed to create payment order');
         }
 
-        orderData = await orderResponse.json();
-
-        if (!orderData.success) {
-          throw new Error(orderData.message || 'Failed to create payment order');
-        }
+        orderData = orderResponse.data;
       }
 
+      // Initialize Razorpay
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.order.amount,
-        currency: 'INR',
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
         name: 'University Hostel',
         description: `Hostel Fees - ${selectedRoomType} Room`,
-        order_id: orderData.order.id,
+        order_id: orderData.orderId,
         handler: async (response: any) => {
           try {
-            const verifyResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/verify`, {
-              method: 'POST',
+            const verifyResponse = await axiosApiInstance.post('/api/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              roomType: selectedRoomType
+            }, {
+              withCredentials: true,
               headers: {
                 'Content-Type': 'application/json',
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                roomType: selectedRoomType
-              })
+              }
             });
 
-            if (!verifyResponse.ok) {
-              throw new Error('Verification failed');
-            }
-
-            const verifyData = await verifyResponse.json();
-            
-            if (verifyData.success) {
+            if (verifyResponse.data.status) {
               setPendingPayment(null); // Clear pending payment
+              toast.success('Payment successful! Admin has been notified for room allocation.');
               onPaymentSuccess();
-              alert('Payment successful! Admin has been notified for room allocation.');
             } else {
-              alert('Payment verification failed: ' + verifyData.message);
+              toast.error('Payment verification failed: ' + verifyResponse.data.message);
             }
           } catch (error: any) {
-            alert('Payment verification failed: ' + error.message);
+            console.error('Payment verification error:', error);
+            toast.error('Payment verification failed. Please contact support.');
           }
         },
         prefill: {
-          name: 'Test Student',
-          email: 'test@university.com',
-          contact: '9999999999'
+          name: authUser.data.name || 'Student',
+          email: authUser.data.email || '',
+          contact: authUser.data.phone || ''
         },
         theme: {
           color: '#3B82F6'
@@ -146,11 +143,26 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
         }
       };
 
-      const razorpay = new (window as any).Razorpay(options);
-      razorpay.open();
+      // Check if Razorpay is loaded
+      if (typeof window !== 'undefined' && (window as any).Razorpay) {
+        const razorpay = new (window as any).Razorpay(options);
+        razorpay.open();
+      } else {
+        throw new Error('Razorpay not loaded. Please refresh the page.');
+      }
       
     } catch (error: any) {
-      alert('Failed to initiate payment: ' + error.message);
+      console.error('Payment initiation error:', error);
+      
+      // Better error handling
+      if (error.response?.status === 404) {
+        toast.error('Payment service not available. Please contact support.');
+      } else if (error.response?.status === 401) {
+        toast.error('Please login to continue with payment.');
+      } else {
+        toast.error(error.response?.data?.message || error.message || 'Failed to initiate payment');
+      }
+      
       setIsProcessing(false);
     }
   };
@@ -176,7 +188,7 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
               </div>
               <div className="ml-3">
                 <p className="text-sm text-yellow-700">
-                  <strong>Pending Payment Found:</strong> You have an incomplete payment for {pendingPayment.roomType} room (₹{pendingPayment.paymentAmount.toLocaleString()}). 
+                  <strong>Pending Payment Found:</strong> You have an incomplete payment for {pendingPayment.roomType} room (₹{pendingPayment.paymentAmount?.toLocaleString()}). 
                   You can resume this payment or start a new one.
                 </p>
               </div>
@@ -216,14 +228,14 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
               </div>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-gray-600">Amount:</span>
-                <span className="font-bold text-green-600">₹{pendingPayment.paymentAmount.toLocaleString()}</span>
+                <span className="font-bold text-green-600">₹{pendingPayment.paymentAmount?.toLocaleString()}</span>
               </div>
               <button 
                 onClick={() => handlePayment(true)}
                 disabled={isProcessing}
-                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200"
+                className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200"
               >
-                Resume Payment
+                {isProcessing ? 'Processing...' : 'Resume Payment'}
               </button>
             </div>
           )}
@@ -266,7 +278,7 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
                       <span className="text-xl font-bold text-green-600">
                         {hostelFees.Normal.toLocaleString()}
                       </span>
-                      <span className="text-sm text-gray-500 ml-1">/semester</span>
+                      <span className="text-sm text-gray-500 ml-1">/year</span>
                     </div>
                   </div>
                 </div>
@@ -303,7 +315,7 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
                       <span className="text-xl font-bold text-green-600">
                         {hostelFees.AC.toLocaleString()}
                       </span>
-                      <span className="text-sm text-gray-500 ml-1">/semester</span>
+                      <span className="text-sm text-gray-500 ml-1">/year</span>
                     </div>
                   </div>
                 </div>

@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import React, { useEffect } from 'react'
 import { useAuthStore } from "../../../lib/store/useAuthStore"
 
-const page = () => {
-    const router = useRouter()
+const Page = () => {
+    const router = useRouter();
     const { authUser, checkAuth, isCheckingAuth } = useAuthStore()
 
    
@@ -29,4 +29,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page
