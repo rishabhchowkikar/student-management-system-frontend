@@ -118,28 +118,36 @@ const Sidebar: React.FC = () => {
             <div
                 className={`fixed top-0 left-0 w-72 bg-white shadow-xl border-r border-gray-200 transform ${
                     isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } md:translate-x-0 transition-transform duration-300 ease-in-out h-full mt-20 z-40`}
+                } md:translate-x-0 transition-transform duration-300 ease-in-out h-full mt-20 z-40
+                flex flex-col`}
             >
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
+                {/* Header Section */}
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
+                    p-4 sm:p-6 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
                             {student ? (
                                 <>
-                                    <Avatar className="h-12 w-12 ring-2 ring-white/20">
-                                        <AvatarImage src={student.photo || "/avatar-placeholder.png"} alt="Student Avatar" />
+                                    <Avatar className="h-10 w-10 sm:h-12 sm:w-12 ring-2 ring-white/20">
+                                        <AvatarImage 
+                                            src={student.photo || "/avatar-placeholder.png"} 
+                                            alt="Student Avatar" 
+                                        />
                                         <AvatarFallback className="bg-white/20 text-white font-semibold">
                                             {getInitials(student.name)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <div>
-                                        <p className="font-semibold text-lg">{student.name.split(' ')[0]}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-semibold text-base sm:text-lg truncate">
+                                            {student.name.split(' ')[0]}
+                                        </p>
                                         <p className="text-sm opacity-80">Student</p>
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    <div className="h-12 w-12 bg-white/20 rounded-full animate-pulse" />
-                                    <div>
+                                    <div className="h-10 w-10 sm:h-12 sm:w-12 bg-white/20 rounded-full animate-pulse" />
+                                    <div className="flex-1">
                                         <div className="h-4 w-20 bg-white/20 rounded animate-pulse mb-2" />
                                         <div className="h-3 w-16 bg-white/20 rounded animate-pulse" />
                                     </div>
@@ -154,10 +162,12 @@ const Sidebar: React.FC = () => {
                             <X className="h-5 w-5" />
                         </Button>
                     </div>
+                    
+                    {/* Student Info */}
                     <div className="text-sm opacity-90">
                         {student ? (
                             <>
-                                <p>Roll No: {student.rollno}</p>
+                                <p className="truncate">Roll No: {student.rollno}</p>
                                 <p className="truncate">{student.email}</p>
                             </>
                         ) : (
@@ -168,7 +178,9 @@ const Sidebar: React.FC = () => {
                         )}
                     </div>
                 </div>
-                <nav className="p-4 space-y-2">
+
+                {/* Navigation Section - Scrollable */}
+                <nav className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1 sm:space-y-2">
                     {sidebarMenuItems.map((item) => {
                         const isActive = pathname === item.route
                         return (
@@ -180,27 +192,36 @@ const Sidebar: React.FC = () => {
                                     setSidebarClose(false)
                                 }}
                                 className={`
-                                    w-full justify-start gap-3 h-11
-                                    ${isActive ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" : "text-gray-600 hover:bg-gray-100"}
+                                    w-full justify-start gap-3 h-10 sm:h-11
+                                    ${isActive 
+                                        ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" 
+                                        : "text-gray-600 hover:bg-gray-100"
+                                    }
                                 `}
                             >
                                 <item.icon className="h-5 w-5" />
-                                {item.label}
+                                <span className="truncate">{item.label}</span>
                             </Button>
                         )
                     })}
-                    <Separator className="my-4" />
+                    
+                    <Separator className="my-3 sm:my-4" />
+                    
                     <Button
                         variant="ghost"
-                        className="w-full justify-start gap-3 h-11 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        className="w-full justify-start gap-3 h-10 sm:h-11 text-red-600 hover:bg-red-50 hover:text-red-700"
                         onClick={handleLogoutConfirmation}
                         disabled={isLoggingOut}
                     >
                         <LogOut className="h-5 w-5" />
-                        {isLoggingOut ? "Logging out..." : "Logout"}
+                        <span className="truncate">
+                            {isLoggingOut ? "Logging out..." : "Logout"}
+                        </span>
                     </Button>
                 </nav>
             </div>
+
+            {/* Overlay for mobile */}
             {isSidebarOpen && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
