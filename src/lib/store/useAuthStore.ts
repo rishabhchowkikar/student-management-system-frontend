@@ -137,14 +137,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     signUpUser: async (payload: SignUpPayload) => {
         set({ isSigningUp: true });
         try {
-            const response = await axiosApiInstance.post("/api/auth/sign-up",
+            const response = await axiosApiInstance.post("/api/auth/student/sign-up",
                 payload,
                 {
                     headers: {
                         "Content-Type": "application/json"
                     }
                 })
+
             set({ authUser: response.data })
+            return response.data;
         } catch (error) {
             console.log(`error: ${error}`)
         }

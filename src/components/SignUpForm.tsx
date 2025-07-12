@@ -49,12 +49,12 @@ export function SignUpForm({
 
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-    
+
     // Course related states
     const [courses, setCourses] = useState<Course[]>([])
     const [isLoadingCourses, setIsLoadingCourses] = useState(true)
     const [isSubmitting, setIsSubmitting] = useState(false)
-    
+
     // Password match validation state
     const [passwordsMatch, setPasswordsMatch] = useState(true)
 
@@ -70,7 +70,7 @@ export function SignUpForm({
             try {
                 setIsLoadingCourses(true)
                 const response = await apiGetCoursesForSignup()
-                
+
                 if (response.status && response.data) {
                     setCourses(response.data)
                     console.log('Courses loaded:', response.data)
@@ -105,9 +105,9 @@ export function SignUpForm({
             confirmPassword: formData.confirmPassword.length === 0 || formData.password !== formData.confirmPassword,
             courseId: formData.courseId.length === 0
         }
-        
-        setFormDataError(newErrors); 
-        
+
+        setFormDataError(newErrors);
+
         if (newErrors.name || newErrors.email || newErrors.password || newErrors.confirmPassword || newErrors.courseId) {
             let errorMessages = [];
 
@@ -130,10 +130,10 @@ export function SignUpForm({
     const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prevData) => ({
-            ...prevData, 
+            ...prevData,
             [name]: value
         }))
-        
+
         if (formDataError[name as keyof typeof formDataError]) {
             setFormDataError(prev => ({
                 ...prev,
@@ -147,14 +147,14 @@ export function SignUpForm({
             ...prev,
             courseId: courseId
         }))
-        
+
         if (formDataError.courseId) {
             setFormDataError(prev => ({
                 ...prev,
                 courseId: false
             }))
         }
-        
+
         const selectedCourse = courses.find(course => course._id === courseId)
         if (selectedCourse) {
             toast.success(`Course selected: ${selectedCourse.displayName}`, {
@@ -165,13 +165,13 @@ export function SignUpForm({
 
     const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
+
         if (!onValidationCheck()) {
             return;
         }
 
         setIsSubmitting(true);
-        
+
         try {
             const payload = {
                 name: formData.name,
@@ -181,10 +181,12 @@ export function SignUpForm({
             }
 
             console.log('Submitting signup payload:', payload);
-            
+
             const loadingToast = toast.loading('Creating your account...');
-            
+
             const result = await signUpUser(payload);
+
+            console.log("result ", result)
 
             toast.dismiss(loadingToast);
 
@@ -193,14 +195,14 @@ export function SignUpForm({
                     description: 'Please complete your profile to continue.',
                     duration: 4000,
                 });
-                
+
                 setTimeout(() => {
                     router.push('/complete-profile');
                 }, 1000);
             }
         } catch (error: any) {
             console.error("Signup failed:", error);
-            
+
             toast.error('Signup failed!', {
                 description: error.message || "Please try again or contact support if the problem persists.",
                 duration: 5000,
@@ -220,17 +222,17 @@ export function SignUpForm({
                             Fill in your details below to create your student account
                         </p>
                     </div>
-                    
+
                     <div className="grid gap-6">
                         {/* Name Field */}
                         <div className="grid gap-2">
                             <Label htmlFor="name" className="text-sm font-medium">Full Name *</Label>
-                            <Input 
-                                id="name" 
-                                type="text" 
-                                name="name" 
-                                value={formData.name} 
-                                onChange={onChangeHandler} 
+                            <Input
+                                id="name"
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={onChangeHandler}
                                 placeholder="Enter your full name"
                                 className={formDataError.name ? 'border-red-500 focus:border-red-500' : ''}
                                 disabled={isSubmitting}
@@ -240,12 +242,12 @@ export function SignUpForm({
                         {/* Email Field */}
                         <div className="grid gap-2">
                             <Label htmlFor="email" className="text-sm font-medium">Email Address *</Label>
-                            <Input 
-                                id="email" 
-                                type="email" 
-                                name="email" 
-                                value={formData.email} 
-                                onChange={onChangeHandler} 
+                            <Input
+                                id="email"
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={onChangeHandler}
                                 placeholder="student@university.com"
                                 className={formDataError.email ? 'border-red-500 focus:border-red-500' : ''}
                                 disabled={isSubmitting}
@@ -258,40 +260,96 @@ export function SignUpForm({
                                 <GraduationCap className="w-4 h-4 mr-2 text-blue-600" />
                                 Select Course *
                             </Label>
-                            
+
                             {isLoadingCourses ? (
-                                <div className="flex items-center justify-center p-4 border rounded-md">
+                                <div className="flex items-center justify-center p-2 border rounded-md min-h-[48px]">
                                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                                     <span className="ml-2 text-sm text-gray-600">Loading courses...</span>
                                 </div>
                             ) : (
-                                <Select 
-                                    value={formData.courseId} 
-                                    onValueChange={onCourseChange}
-                                    disabled={isSubmitting}
-                                >
-                                    <SelectTrigger className={`w-full ${formDataError.courseId ? 'border-red-500' : ''}`}>
-                                        <SelectValue placeholder="Choose your course" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {courses.map((course) => (
-                                            <SelectItem key={course._id} value={course._id}>
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium">{course.displayName}</span>
-                                                    <span className="text-xs text-gray-500">
-                                                        {course.department} • {course.school}
-                                                    </span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="relative w-full">
+                                    <Select
+                                        value={formData.courseId}
+                                        onValueChange={onCourseChange}
+                                        disabled={isSubmitting}
+                                    >
+                                        <SelectTrigger className={`
+                    w-full 
+                    h-auto 
+                    px-4  
+                    text-sm 
+                    sm:text-base
+                    ${formDataError.courseId ? 'border-red-500' : 'border-gray-300'}
+                    hover:border-gray-400 
+                    focus:ring-2 
+                    transition-all 
+                    duration-200
+                `}>
+                                            <SelectValue
+                                                placeholder="Choose your course"
+                                                className="text-gray-500 text-sm sm:text-base truncate"
+                                            />
+                                        </SelectTrigger>
+                                        <SelectContent
+                                            className="
+                        w-[var(--radix-select-trigger-width)]
+                        max-w-[400px]
+                        max-h-[300px] 
+                        overflow-hidden
+                        bg-white 
+                        border 
+                        border-gray-200 
+                        rounded-lg 
+                        shadow-lg 
+                        z-[9999]
+                        p-1
+                    "
+                                            position="popper"
+                                            side="bottom"
+                                            sideOffset={4}
+                                            align="start"
+                                            avoidCollisions={true}
+                                            collisionPadding={10}
+                                        >
+                                            {courses.map((course) => (
+                                                <SelectItem
+                                                    key={course._id}
+                                                    value={course._id}
+                                                    className="
+                                cursor-pointer 
+                                hover:bg-gray-100 
+                                focus:bg-gray-100 
+                                rounded-md 
+                                px-3 
+                                py-2
+                                transition-colors 
+                                duration-150
+                                text-sm
+                                overflow-hidden
+                            "
+                                                >
+                                                    <div className="flex flex-col items-start space-y-1 w-full min-w-0">
+                                                        <span className="font-medium text-sm text-gray-900 leading-tight truncate">
+                                                            {course.displayName}
+                                                        </span>
+                                                        <span className="text-xs flex flex-col items-start text-gray-500 truncate">
+                                                            <p>{course.department} </p>
+                                                            <p> {course.school}</p>
+                                                        </span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             )}
-                            
+
                             {formData.courseId && (
-                                <p className="text-xs text-green-600">
-                                    ✓ Selected: {courses.find(c => c._id === formData.courseId)?.displayName}
-                                </p>
+                                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                                    <p className="text-xs sm:text-sm text-green-700 font-medium truncate">
+                                        ✓ Selected: {courses.find(c => c._id === formData.courseId)?.displayName}
+                                    </p>
+                                </div>
                             )}
                         </div>
 
@@ -299,11 +357,11 @@ export function SignUpForm({
                         <div className="grid gap-2">
                             <Label htmlFor="password" className="text-sm font-medium">Password *</Label>
                             <div className="relative">
-                                <Input 
-                                    id="password" 
-                                    type={showPassword ? "text" : "password"} 
-                                    name="password" 
-                                    value={formData.password} 
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    value={formData.password}
                                     onChange={onChangeHandler}
                                     placeholder="Enter your password"
                                     className={`pr-10 ${formDataError.password ? 'border-red-500 focus:border-red-500' : ''}`}
@@ -329,17 +387,16 @@ export function SignUpForm({
                         <div className="grid gap-2">
                             <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password *</Label>
                             <div className="relative">
-                                <Input 
-                                    id="confirmPassword" 
-                                    type={showConfirmPassword ? "text" : "password"} 
-                                    name="confirmPassword" 
-                                    value={formData.confirmPassword} 
+                                <Input
+                                    id="confirmPassword"
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    name="confirmPassword"
+                                    value={formData.confirmPassword}
                                     onChange={onChangeHandler}
                                     placeholder="Confirm your password"
-                                    className={`pr-10 ${
-                                        formDataError.confirmPassword ? 'border-red-500 focus:border-red-500' : 
+                                    className={`pr-10 ${formDataError.confirmPassword ? 'border-red-500 focus:border-red-500' :
                                         !passwordsMatch && formData.confirmPassword ? 'border-red-500 focus:border-red-500' : ''
-                                    }`}
+                                        }`}
                                     disabled={isSubmitting}
                                 />
                                 <button
@@ -362,8 +419,8 @@ export function SignUpForm({
                             )}
                         </div>
 
-                        <Button 
-                            type="submit" 
+                        <Button
+                            type="submit"
                             className="w-full !bg-bgPrimary-100 hover:!bg-bgPrimary-100/90 transition-colors h-11"
                             disabled={isLoadingCourses || isSubmitting}
                         >
@@ -371,15 +428,15 @@ export function SignUpForm({
                         </Button>
                     </div>
                 </form>
-                
+
                 <div className="relative py-4 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                     <span className="relative z-10 bg-background px-2 text-muted-foreground">
                         Already have an account?
                     </span>
                 </div>
-                
-                <Button 
-                    variant="outline" 
+
+                <Button
+                    variant="outline"
                     className="w-full h-11"
                     onClick={() => router.push("/sign-in")}
                     disabled={isSubmitting}

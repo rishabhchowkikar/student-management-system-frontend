@@ -57,6 +57,11 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
   };
 
   const handlePayment = async (isResume = false) => {
+     console.log("=== FRONTEND PAYMENT DEBUG ===");
+  console.log("Selected room type:", selectedRoomType);
+  console.log("Hostel fees object:", hostelFees);
+  console.log("Amount for selected room:", hostelFees[selectedRoomType]);
+  console.log("Is resume payment:", isResume);
     if (!authUser?.data) {
       toast.error('Please login to continue');
       return;
@@ -69,6 +74,7 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
 
       if (isResume && pendingPayment) {
         // Resume existing payment
+         console.log("Resuming payment with pending data:", pendingPayment);
         orderData = {
           status: true,
           orderId: pendingPayment.orderId,
@@ -87,12 +93,16 @@ const HostelPaymentCard: React.FC<HostelPaymentCardProps> = ({ onPaymentSuccess 
           }
         });
 
+          console.log("Backend response:", orderResponse.data);
+
         if (!orderResponse.data.status) {
           throw new Error(orderResponse.data.message || 'Failed to create payment order');
         }
 
         orderData = orderResponse.data;
       }
+
+       console.log("Final order data for Razorpay:", orderData);
 
       // Initialize Razorpay
       const options = {

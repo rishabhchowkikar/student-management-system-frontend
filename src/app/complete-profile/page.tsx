@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { apiCheckAuth, apiGetUpdatePermissionStatus, apiRequestUpdatePermission, apiUpdatePersonalDetails } from '@/lib/store/useAuthStore';
+import { toast } from 'sonner';
+
 
 interface FormData {
   phone: string;
@@ -62,19 +64,19 @@ export default function CompleteProfile() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [user, setUser] = useState<User | null>(null);
-  
+
   // Permission related states
   const [permissionStatus, setPermissionStatus] = useState<string>("none");
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [permissionData, setPermissionData] = useState<any>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
-  
+
   // First time user check
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
-  
+
   // NEW STATE - Fields ko disable karne ke liye
   const [areFieldsDisabled, setAreFieldsDisabled] = useState(false);
-  
+
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -96,11 +98,18 @@ export default function CompleteProfile() {
     want_to_apply_for_hostel: false,
   });
 
+  const [month, setMonth] = useState<Date>(new Date());
+
+  const formatDate = (date: Date | undefined): string => {
+    if (!date) return '';
+    return format(date, 'yyyy-MM-dd');
+  };
+
   useEffect(() => {
     const checkAuthAndProfileStatus = async () => {
       try {
         setIsLoading(true);
-        
+
         // Check if user is authenticated
         const userData = await apiCheckAuth();
         setUser(userData.data);
@@ -108,7 +117,7 @@ export default function CompleteProfile() {
         // Check if user is first time
         const isFirstTime = checkIfFirstTimeUser(userData.data);
         setIsFirstTimeUser(isFirstTime);
-        
+
         console.log('Is first time user:', isFirstTime);
 
         // Agar first time user nahi hai, tab permission check karo
@@ -161,7 +170,7 @@ export default function CompleteProfile() {
   const checkIfFirstTimeUser = (userData: User): boolean => {
     const requiredFields = [
       'phone',
-      'address', 
+      'address',
       'dob',
       'gender',
       'category',
@@ -188,7 +197,7 @@ export default function CompleteProfile() {
       setPermissionStatus(data.permissionData.status);
       setPermissionData(data.permissionData);
       console.log('Permission status:', data.permissionData.status);
-      
+
       // NAYA LOGIC - Fields disable karo based on permission status
       if (data.permissionData.status === "approved") {
         setAreFieldsDisabled(false); // Permission approved - fields enable karo
@@ -197,7 +206,7 @@ export default function CompleteProfile() {
         setAreFieldsDisabled(true); // No permission - fields disable karo
         console.log('No permission - Fields disabled');
       }
-      
+
     } catch (error) {
       console.error('Error checking permission status:', error);
       // If error, disable fields for safety
@@ -215,10 +224,14 @@ export default function CompleteProfile() {
       setShowPermissionDialog(false);
       // Fields still disabled until admin approves
       setAreFieldsDisabled(true);
-      alert("Permission request sent to admin successfully!");
+      toast.success("Permission request sent to admin successfully!", {
+  duration: 4000,
+});
     } catch (error) {
       console.error('Error requesting permission:', error);
-      alert("Failed to send permission request");
+     toast.error("Failed to send permission request", {
+  duration: 5000,
+});
     } finally {
       setIsRequestingPermission(false);
     }
@@ -231,12 +244,12 @@ export default function CompleteProfile() {
       console.log('Fields are disabled, ignoring input change');
       return;
     }
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -253,7 +266,7 @@ export default function CompleteProfile() {
       console.log('Fields are disabled, ignoring photo change');
       return;
     }
-    
+
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
@@ -299,7 +312,7 @@ export default function CompleteProfile() {
       console.log('Fields are disabled, ignoring date change');
       return;
     }
-    
+
     setDate(selectedDate);
     if (selectedDate) {
       setFormData(prev => ({
@@ -347,29 +360,29 @@ export default function CompleteProfile() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     console.log('Form submission started');
     console.log('Is first time user:', isFirstTimeUser);
     console.log('Permission status:', permissionStatus);
     console.log('Are fields disabled:', areFieldsDisabled);
-    
+
     // Permission check sirf existing users ke liye
     if (!isFirstTimeUser && permissionStatus !== "approved") {
       console.log('Existing user without permission, showing dialog');
       setShowPermissionDialog(true);
       return;
     }
-    
+
     if (!validateForm()) {
       console.log('Form validation failed');
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       const submitData = new FormData();
-      
+
       Object.entries(formData).forEach(([key, value]) => {
         if (key === 'photo' && value instanceof File) {
           submitData.append(key, value);
@@ -381,29 +394,36 @@ export default function CompleteProfile() {
       });
 
       const result = await apiUpdatePersonalDetails(submitData);
-      
+
+      console.log("result ",result)
+
       if (isFirstTimeUser) {
-        alert("Profile completed successfully!");
+        toast.success("Profile completed successfully!", {
+  duration: 4000,
+});
+
       } else {
-        alert("Profile updated successfully!");
+       toast.success("Profile updated successfully!", {
+  duration: 4000,
+});
         // After successful update, reset permission status
         setPermissionStatus("none");
         setAreFieldsDisabled(true);
       }
-      
+
       router.push('/');
-      
+
     } catch (error: any) {
       console.error('Error updating profile:', error);
-      
+
       if (error.response?.data?.needsPermission) {
         setPermissionStatus(error.response.data.permissionStatus);
         setShowPermissionDialog(true);
         return;
       }
-      
-      setErrors({ 
-        submit: error.response?.data?.message || 'Failed to update profile. Please try again.' 
+
+      setErrors({
+        submit: error.response?.data?.message || 'Failed to update profile. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -418,7 +438,7 @@ export default function CompleteProfile() {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
           <h3 className="text-lg font-semibold mb-4">Admin Permission Required</h3>
-          
+
           {permissionStatus === "none" && (
             <div>
               <p className="text-gray-600 mb-4">
@@ -514,9 +534,9 @@ export default function CompleteProfile() {
               )}
             </h1>
             <p className="text-blue-100 mt-2">
-              {isFirstTimeUser 
+              {isFirstTimeUser
                 ? 'Please fill in all the required information to complete your profile'
-                : areFieldsDisabled 
+                : areFieldsDisabled
                   ? 'Fields are locked - Request admin permission to make changes'
                   : 'Update your profile information as needed'
               }
@@ -606,22 +626,19 @@ export default function CompleteProfile() {
                   <img
                     src={photoPreview}
                     alt="Profile preview"
-                    className={`w-32 h-32 rounded-full object-cover border-4 ${
-                      areFieldsDisabled && !isFirstTimeUser ? 'border-gray-300 opacity-60' : 'border-blue-200'
-                    }`}
+                    className={`w-32 h-32 rounded-full object-cover border-4 ${areFieldsDisabled && !isFirstTimeUser ? 'border-gray-300 opacity-60' : 'border-blue-200'
+                      }`}
                   />
                 ) : (
-                  <div className={`w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'border-gray-300 opacity-60' : 'border-gray-300'
-                  }`}>
+                  <div className={`w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 ${areFieldsDisabled && !isFirstTimeUser ? 'border-gray-300 opacity-60' : 'border-gray-300'
+                    }`}>
                     <User className="w-16 h-16 text-gray-400" />
                   </div>
                 )}
-                <label className={`absolute bottom-0 right-0 p-2 rounded-full transition-colors ${
-                  areFieldsDisabled && !isFirstTimeUser 
-                    ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                <label className={`absolute bottom-0 right-0 p-2 rounded-full transition-colors ${areFieldsDisabled && !isFirstTimeUser
+                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
                     : 'bg-blue-600 text-white cursor-pointer hover:bg-blue-700'
-                }`}>
+                  }`}>
                   <Upload className="w-4 h-4" />
                   <input
                     type="file"
@@ -656,9 +673,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   placeholder="Enter your phone number"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.phone ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.phone ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
               </div>
@@ -676,9 +692,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('altPhone', e.target.value)}
                   placeholder="Enter alternate phone number"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.altPhone ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.altPhone ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.altPhone && <p className="text-red-500 text-sm">{errors.altPhone}</p>}
               </div>
@@ -695,50 +710,68 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('address', e.target.value)}
                   placeholder="Enter your complete address"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.address ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.address ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                   rows={3}
                 />
                 {errors.address && <p className="text-red-500 text-sm">{errors.address}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center">
-                  <CalendarDays className="w-4 h-4 mr-2 text-blue-600" />
-                  Date of Birth *
-                  {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
-                </Label>
-                <Popover open={open} onOpenChange={setOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      disabled={areFieldsDisabled && !isFirstTimeUser}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground",
-                        errors.dob && "border-red-500",
-                        areFieldsDisabled && !isFirstTimeUser && "bg-gray-100 cursor-not-allowed opacity-60"
-                      )}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={date}
-                      onSelect={handleDateSelect}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                {errors.dob && <p className="text-red-500 text-sm">{errors.dob}</p>}
-              </div>
+             <div className="space-y-2">
+  <Label className="flex items-center">
+    <CalendarDays className="w-4 h-4 mr-2 text-blue-600" />
+    Date of Birth *
+    {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
+  </Label>
+  <Popover open={open} onOpenChange={setOpen}>
+    <PopoverTrigger asChild>
+      <Button
+        variant="outline"
+        disabled={areFieldsDisabled && !isFirstTimeUser}
+        className={cn(
+          "w-full justify-start text-left font-normal",
+          !date && "text-muted-foreground",
+          errors.dob && "border-red-500",
+          areFieldsDisabled && !isFirstTimeUser && "bg-gray-100 cursor-not-allowed opacity-60"
+        )}
+      >
+        <Calendar className="mr-2 h-4 w-4" />
+        {date ? format(date, "PPP") : "Pick a date"}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto p-0" align="start">
+      <CalendarComponent
+        mode="single"
+        selected={date}
+        captionLayout="dropdown"
+        month={month}
+        onMonthChange={setMonth}
+        onSelect={(selectedDate) => {
+          if (areFieldsDisabled && !isFirstTimeUser) {
+            console.log('Fields are disabled, ignoring date change');
+            return;
+          }
+          setDate(selectedDate);
+          if (selectedDate) {
+            setFormData(prev => ({
+              ...prev,
+              dob: formatDate(selectedDate)
+            }));
+          }
+          setOpen(false);
+        }}
+        disabled={(date) =>
+          date > new Date() || date < new Date("1900-01-01")
+        }
+        initialFocus
+        fromYear={1900}
+        toYear={new Date().getFullYear()}
+        showOutsideDays={false}
+      />
+    </PopoverContent>
+  </Popover>
+  {errors.dob && <p className="text-red-500 text-sm">{errors.dob}</p>}
+</div>
 
               <div className="space-y-2">
                 <Label htmlFor="gender" className="flex items-center">
@@ -746,14 +779,13 @@ export default function CompleteProfile() {
                   Gender *
                   {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
                 </Label>
-                <Select 
-                  value={formData.gender} 
+                <Select
+                  value={formData.gender}
                   onValueChange={(value) => handleInputChange('gender', value)}
                   disabled={areFieldsDisabled && !isFirstTimeUser}
                 >
-                  <SelectTrigger className={`${errors.gender ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}>
+                  <SelectTrigger className={`${errors.gender ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -771,14 +803,13 @@ export default function CompleteProfile() {
                   Category *
                   {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
                 </Label>
-                <Select 
-                  value={formData.category} 
+                <Select
+                  value={formData.category}
                   onValueChange={(value) => handleInputChange('category', value)}
                   disabled={areFieldsDisabled && !isFirstTimeUser}
                 >
-                  <SelectTrigger className={`${errors.category ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}>
+                  <SelectTrigger className={`${errors.category ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -804,9 +835,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('nationality', e.target.value)}
                   placeholder="Enter your nationality"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.nationality ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.nationality ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.nationality && <p className="text-red-500 text-sm">{errors.nationality}</p>}
               </div>
@@ -817,14 +847,13 @@ export default function CompleteProfile() {
                   Blood Group *
                   {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
                 </Label>
-                <Select 
-                  value={formData.bloodGroup} 
+                <Select
+                  value={formData.bloodGroup}
                   onValueChange={(value) => handleInputChange('bloodGroup', value)}
                   disabled={areFieldsDisabled && !isFirstTimeUser}
                 >
-                  <SelectTrigger className={`${errors.bloodGroup ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}>
+                  <SelectTrigger className={`${errors.bloodGroup ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}>
                     <SelectValue placeholder="Select blood group" />
                   </SelectTrigger>
                   <SelectContent>
@@ -853,9 +882,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('aadharNumber', e.target.value)}
                   placeholder="Enter your 12-digit Aadhar number"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.aadharNumber ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.aadharNumber ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.aadharNumber && <p className="text-red-500 text-sm">{errors.aadharNumber}</p>}
               </div>
@@ -872,9 +900,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('fatherName', e.target.value)}
                   placeholder="Enter father's name"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.fatherName ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.fatherName ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.fatherName && <p className="text-red-500 text-sm">{errors.fatherName}</p>}
               </div>
@@ -891,9 +918,8 @@ export default function CompleteProfile() {
                   onChange={(e) => handleInputChange('motherName', e.target.value)}
                   placeholder="Enter mother's name"
                   disabled={areFieldsDisabled && !isFirstTimeUser}
-                  className={`${errors.motherName ? 'border-red-500' : ''} ${
-                    areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`${errors.motherName ? 'border-red-500' : ''} ${areFieldsDisabled && !isFirstTimeUser ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                    }`}
                 />
                 {errors.motherName && <p className="text-red-500 text-sm">{errors.motherName}</p>}
               </div>
@@ -909,9 +935,8 @@ export default function CompleteProfile() {
                   disabled={areFieldsDisabled && !isFirstTimeUser}
                   className={areFieldsDisabled && !isFirstTimeUser ? 'opacity-60 cursor-not-allowed' : ''}
                 />
-                <Label htmlFor="isPwd" className={`text-sm font-medium flex items-center ${
-                  areFieldsDisabled && !isFirstTimeUser ? 'opacity-60' : ''
-                }`}>
+                <Label htmlFor="isPwd" className={`text-sm font-medium flex items-center ${areFieldsDisabled && !isFirstTimeUser ? 'opacity-60' : ''
+                  }`}>
                   Person with Disability (PWD)
                   {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
                 </Label>
@@ -925,9 +950,8 @@ export default function CompleteProfile() {
                   disabled={areFieldsDisabled && !isFirstTimeUser}
                   className={areFieldsDisabled && !isFirstTimeUser ? 'opacity-60 cursor-not-allowed' : ''}
                 />
-                <Label htmlFor="want_to_apply_for_hostel" className={`text-sm font-medium flex items-center ${
-                  areFieldsDisabled && !isFirstTimeUser ? 'opacity-60' : ''
-                }`}>
+                <Label htmlFor="want_to_apply_for_hostel" className={`text-sm font-medium flex items-center ${areFieldsDisabled && !isFirstTimeUser ? 'opacity-60' : ''
+                  }`}>
                   I want to apply for hostel accommodation
                   {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
                 </Label>
@@ -947,14 +971,13 @@ export default function CompleteProfile() {
               <Button
                 type="submit"
                 disabled={isSubmitting || (areFieldsDisabled && !isFirstTimeUser)}
-                className={`px-8 ${
-                  areFieldsDisabled && !isFirstTimeUser 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                className={`px-8 ${areFieldsDisabled && !isFirstTimeUser
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                  }`}
               >
-                {isSubmitting 
-                  ? (isFirstTimeUser ? 'Completing...' : 'Updating...') 
+                {isSubmitting
+                  ? (isFirstTimeUser ? 'Completing...' : 'Updating...')
                   : areFieldsDisabled && !isFirstTimeUser
                     ? 'Fields Locked'
                     : (isFirstTimeUser ? 'Complete Profile' : 'Update Profile')
