@@ -13,13 +13,19 @@ export interface LoginPayload {
     password: string
 }
 
+// UPDATED - New interface for detailed permission request
 export interface UpdatePermissionPayload {
     reason?: string
+    requestedChanges: {
+        [fieldName: string]: {
+            newValue: string
+            reason: string
+        }
+    }
 }
 
-
 export interface AuthStore {
-    authUser: any; // Replace `any` with your actual user type if available
+    authUser: any;
     isCheckingAuth: boolean;
     isSigningUp: boolean;
     isLoggingIn: boolean;
@@ -33,7 +39,6 @@ export interface AuthStore {
     requestUpdatePermission: (payload: UpdatePermissionPayload) => Promise<any>;
     getUpdatePermissionStatus: () => Promise<any>;
     updatePersonalDetails: (formData: FormData) => Promise<any>;
-
 }
 
 export const apiCheckAuth = async () => {
@@ -48,7 +53,7 @@ export const apiCheckAuth = async () => {
     }
 }
 
-
+// UPDATED - Enhanced permission request API
 export const apiRequestUpdatePermission = async (payload: UpdatePermissionPayload) => {
     try {
         const response = await axiosApiInstance.post("/api/auth/request-update-permission",
@@ -181,8 +186,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             throw error
         } 
     },
+    
     checkAuth: async () => {
-        if (get().isLoggingOut || get().skipAuthCheck) return; // Skip checkAuth during logout
+        if (get().isLoggingOut || get().skipAuthCheck) return;
         set({isCheckingAuth:true})
         try {
             const res = await axiosApiInstance.get("/api/auth/check-auth", {
@@ -196,6 +202,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             set({ isCheckingAuth: false })
         }
     },
+    
     requestUpdatePermission: async (payload: UpdatePermissionPayload) => {
         try {
             const data = await apiRequestUpdatePermission(payload);
@@ -204,6 +211,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             throw error;
         }
     },
+    
     getUpdatePermissionStatus: async () => {
         try {
             const data = await apiGetUpdatePermissionStatus();
@@ -212,6 +220,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             throw error;
         }
     },
+    
      updatePersonalDetails: async (formData: FormData) => {
         try {
             const data = await apiUpdatePersonalDetails(formData);
@@ -221,4 +230,3 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         }
     },
 }))
-

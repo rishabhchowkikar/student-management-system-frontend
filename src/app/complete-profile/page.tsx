@@ -1,7 +1,7 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, CalendarDays, Upload, User, Phone, Mail, MapPin, Heart, Users, FileText, Home, Lock } from 'lucide-react';
+import { Calendar, CalendarDays, Upload, User, Phone, Mail, MapPin, Heart, Users, FileText, Home, Lock, X, Plus, Trash2, Clock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { apiCheckAuth, apiGetUpdatePermissionStatus, apiRequestUpdatePermission, apiUpdatePersonalDetails } from '@/lib/store/useAuthStore';
 import { toast } from 'sonner';
-
+import debounce from 'lodash/debounce';
 
 interface FormData {
   phone: string;
@@ -58,6 +58,311 @@ interface User {
   role: string;
 }
 
+// NEW - Interface for requested field changes
+interface RequestedFieldChange {
+  fieldName: string;
+  fieldDisplayName: string;
+  currentValue: string;
+  newValue: string;
+  reason: string;
+}
+
+// Update the PermissionRequestFormProps interface
+interface PermissionRequestFormProps {
+  permissionRequestForm: {
+    generalReason: string;
+    requestedChanges: RequestedFieldChange[];
+  };
+  onGeneralReasonChange: (value: string) => void;  // Updated type
+  onFieldChange: (index: number, updates: Partial<RequestedFieldChange>) => void;
+  onAddField: () => void;
+  onRemoveField: (index: number) => void;
+  availableFields: string[];
+  fieldDisplayNames: { [key: string]: string };
+  onSubmit: () => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  getCurrentFieldValue: (fieldName: string) => string;
+}
+
+interface FieldChangeState {
+  fieldName: string;
+  fieldDisplayName: string;
+  currentValue: string;
+  newValue: string;
+  reason: string;
+}
+
+const RequestSummary = memo(({ 
+  generalReason, 
+  requestedChanges 
+}: { 
+  generalReason: string, 
+  requestedChanges: RequestedFieldChange[] 
+}) => {
+  const summary = useMemo(() => {
+    if (requestedChanges.length === 0) {
+      return generalReason || 'General profile update request';
+    }
+
+    const changes = requestedChanges
+      .filter(change => change.fieldName && change.newValue)
+      .map(change => `${change.fieldDisplayName}: "${change.currentValue}" → "${change.newValue}"`);
+
+    return changes.length > 0 
+      ? `Requested changes: ${changes.join('; ')}`
+      : generalReason || 'Profile update request';
+  }, [generalReason, requestedChanges]);
+
+  if (!generalReason && requestedChanges.length === 0) return null;
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <Label className="text-sm font-medium text-blue-800">Request Summary</Label>
+      <p className="text-sm text-blue-700 mt-1">{summary}</p>
+    </div>
+  );
+});
+
+RequestSummary.displayName = 'RequestSummary';
+
+const PermissionRequestForm = memo(({ 
+  permissionRequestForm, 
+  onGeneralReasonChange, 
+  onFieldChange, 
+  onAddField, 
+  onRemoveField,
+  availableFields,
+  fieldDisplayNames,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  getCurrentFieldValue
+}: PermissionRequestFormProps) => {
+  // Local state for form fields
+  const [localFields, setLocalFields] = useState<FieldChangeState[]>(permissionRequestForm.requestedChanges);
+  const [localReason, setLocalReason] = useState(permissionRequestForm.generalReason);
+
+  // Update local state when props change
+  useEffect(() => {
+    setLocalFields(permissionRequestForm.requestedChanges);
+  }, [permissionRequestForm.requestedChanges]);
+
+  useEffect(() => {
+    setLocalReason(permissionRequestForm.generalReason);
+  }, [permissionRequestForm.generalReason]);
+
+  // Handle text area changes - only update local state while typing
+  const handleTextAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setLocalReason(e.target.value);
+  };
+
+  // Update parent state when text area loses focus
+  const handleTextAreaBlur = () => {
+    if (localReason !== permissionRequestForm.generalReason) {
+      onGeneralReasonChange(localReason);
+    }
+  };
+
+  // Handle field changes - only update local state while typing
+  const handleFieldInputChange = (index: number, updates: Partial<FieldChangeState>) => {
+    setLocalFields(prev => prev.map((field, i) => {
+      if (i === index) {
+        const updated = { ...field, ...updates };
+        if (updates.fieldName) {
+          updated.currentValue = getCurrentFieldValue(updates.fieldName);
+          updated.fieldDisplayName = fieldDisplayNames[updates.fieldName] || updates.fieldName;
+        }
+        return updated;
+      }
+      return field;
+    }));
+  };
+
+  // Update parent state when field input loses focus
+  const handleFieldInputBlur = (index: number) => {
+    const localField = localFields[index];
+    const originalField = permissionRequestForm.requestedChanges[index];
+    
+    if (JSON.stringify(localField) !== JSON.stringify(originalField)) {
+      onFieldChange(index, localField);
+    }
+  };
+
+  // Handle field selection change immediately since it doesn't affect focus
+  const handleFieldSelect = (index: number, fieldName: string) => {
+    const updates = { 
+      fieldName,
+      currentValue: getCurrentFieldValue(fieldName),
+      fieldDisplayName: fieldDisplayNames[fieldName] || fieldName
+    };
+    
+    setLocalFields(prev => prev.map((field, i) => 
+      i === index ? { ...field, ...updates } : field
+    ));
+    onFieldChange(index, updates);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-gray-600 mb-4">
+          To update your profile, please explain the reason for your request and specify which fields you want to change.
+        </p>
+      </div>
+
+      {/* General Reason */}
+      <div className="space-y-2">
+        <Label htmlFor="generalReason" className="text-sm font-medium">
+          General Reason for Update Request *
+        </Label>
+        <Textarea
+          id="generalReason"
+          value={localReason}
+          onChange={handleTextAreaChange}
+          onBlur={handleTextAreaBlur}
+          placeholder="Explain why you need to update your profile (e.g., incorrect information, new documents received, etc.)"
+          rows={3}
+          className="w-full"
+        />
+      </div>
+
+      {/* Specific Field Changes */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <Label className="text-sm font-medium">
+            Specific Field Changes (Optional but Recommended)
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAddField}
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Field
+          </Button>
+        </div>
+
+        {localFields.map((change, index) => (
+          <div key={index} className="border rounded-lg p-4 space-y-3 bg-gray-50">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-700">Change #{index + 1}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onRemoveField(index)}
+                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600">Field to Change</Label>
+                <Select
+                  value={change.fieldName}
+                  onValueChange={(value) => handleFieldSelect(index, value)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableFields
+                      .filter(field => !localFields
+                        .some((c, i) => i !== index && c.fieldName === field))
+                      .map(field => (
+                        <SelectItem key={field} value={field}>
+                          {fieldDisplayNames[field]}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {change.fieldName && (
+                <div>
+                  <Label className="text-xs text-gray-600">Current Value</Label>
+                  <Input
+                    value={change.currentValue}
+                    readOnly
+                    className="h-8 text-sm bg-gray-100 cursor-not-allowed"
+                  />
+                </div>
+              )}
+            </div>
+
+            {change.fieldName && (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs text-gray-600">New Value *</Label>
+                  <Input
+                    value={change.newValue}
+                    onChange={(e) => handleFieldInputChange(index, { newValue: e.target.value })}
+                    onBlur={() => handleFieldInputBlur(index)}
+                    placeholder="Enter the new value you want"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-600">Reason for this change *</Label>
+                  <Textarea
+                    value={change.reason}
+                    onChange={(e) => handleFieldInputChange(index, { reason: e.target.value })}
+                    onBlur={() => handleFieldInputBlur(index)}
+                    placeholder="Explain why you need to change this specific field"
+                    rows={2}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {localFields.length === 0 && (
+          <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed">
+            <FileText className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm">No specific field changes added</p>
+            <p className="text-xs text-gray-400">Add fields above to specify exactly what you want to change</p>
+          </div>
+        )}
+      </div>
+
+      {/* Summary section */}
+      <RequestSummary 
+        generalReason={localReason} 
+        requestedChanges={localFields} 
+      />
+
+      {/* Submit and Cancel buttons */}
+      <div className="flex space-x-3 pt-4 border-t">
+        <Button
+          type="button"
+          onClick={onSubmit}
+          // onClick={()=> console.log(permissionRequestForm)}
+          disabled={isSubmitting}
+          className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        >
+          {isSubmitting ? "Sending Request..." : "Send Permission Request"}
+        </Button>
+        <Button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 font-medium"
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+PermissionRequestForm.displayName = 'PermissionRequestForm';
+
 export default function CompleteProfile() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,8 +379,14 @@ export default function CompleteProfile() {
   // First time user check
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
 
-  // NEW STATE - Fields ko disable karne ke liye
+  // Fields disability state
   const [areFieldsDisabled, setAreFieldsDisabled] = useState(false);
+
+  // NEW - Permission request form states
+  const [permissionRequestForm, setPermissionRequestForm] = useState({
+    generalReason: '',
+    requestedChanges: [] as RequestedFieldChange[]
+  });
 
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -100,9 +411,110 @@ export default function CompleteProfile() {
 
   const [month, setMonth] = useState<Date>(new Date());
 
+  // NEW - Field display names mapping
+  const fieldDisplayNames: { [key: string]: string } = {
+    phone: 'Phone Number',
+    altPhone: 'Alternate Phone',
+    address: 'Address',
+    dob: 'Date of Birth',
+    gender: 'Gender',
+    category: 'Category',
+    nationality: 'Nationality',
+    bloodGroup: 'Blood Group',
+    aadharNumber: 'Aadhar Number',
+    fatherName: "Father's Name",
+    motherName: "Mother's Name",
+    isPwd: 'Person with Disability (PWD)',
+    want_to_apply_for_hostel: 'Hostel Application',
+    photo: 'Profile Photo'
+  };
+
+  // NEW - Available fields for change request
+  const availableFields = Object.keys(fieldDisplayNames);
+
   const formatDate = (date: Date | undefined): string => {
     if (!date) return '';
     return format(date, 'yyyy-MM-dd');
+  };
+
+  // Ensure getCurrentFieldValue is memoized
+  const getCurrentFieldValue = useCallback((fieldName: string): string => {
+    if (!user) return '';
+    
+    const value = user[fieldName as keyof User];
+    
+    if (fieldName === 'dob' && value) {
+      return format(new Date(value as string), 'PPP');
+    }
+    
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+    
+    if (fieldName === 'photo' && value) {
+      return 'Photo uploaded';
+    }
+    
+    return String(value || 'Not set');
+  }, [user]);
+
+  // NEW - Add a field change request
+  const addFieldChangeRequest = () => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: [
+        ...prev.requestedChanges,
+        {
+          fieldName: '',
+          fieldDisplayName: '',
+          currentValue: '',
+          newValue: '',
+          reason: ''
+        }
+      ]
+    }));
+  };
+
+  // NEW - Remove a field change request
+  const removeFieldChangeRequest = (index: number) => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: prev.requestedChanges.filter((_, i) => i !== index)
+    }));
+  };
+
+  // NEW - Update a specific field change request
+  const updateFieldChangeRequest = (index: number, updates: Partial<RequestedFieldChange>) => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: prev.requestedChanges.map((change, i) => {
+        if (i === index) {
+          const updated = { ...change, ...updates };
+          // Auto-fill current value when field is selected
+          if (updates.fieldName) {
+            updated.currentValue = getCurrentFieldValue(updates.fieldName);
+            updated.fieldDisplayName = fieldDisplayNames[updates.fieldName] || updates.fieldName;
+          }
+          return updated;
+        }
+        return change;
+      })
+    }));
+  };
+
+  // NEW - Generate changes summary
+  const generateChangesSummary = (): string => {
+    if (permissionRequestForm.requestedChanges.length === 0) {
+      return permissionRequestForm.generalReason || 'General profile update request';
+    }
+
+    const changes = permissionRequestForm.requestedChanges
+      .filter(change => change.fieldName && change.newValue)
+      .map(change => `${change.fieldDisplayName}: "${change.currentValue}" → "${change.newValue}"`);
+
+    return changes.length > 0 
+      ? `Requested changes: ${changes.join('; ')}`
+      : permissionRequestForm.generalReason || 'Profile update request';
   };
 
   useEffect(() => {
@@ -110,22 +522,18 @@ export default function CompleteProfile() {
       try {
         setIsLoading(true);
 
-        // Check if user is authenticated
         const userData = await apiCheckAuth();
         setUser(userData.data);
 
-        // Check if user is first time
         const isFirstTime = checkIfFirstTimeUser(userData.data);
         setIsFirstTimeUser(isFirstTime);
 
         console.log('Is first time user:', isFirstTime);
 
-        // Agar first time user nahi hai, tab permission check karo
         if (!isFirstTime) {
           await checkPermissionStatus();
         } else {
           console.log('First time user detected, skipping permission check');
-          // First time users ke liye fields enable rakho
           setAreFieldsDisabled(false);
         }
 
@@ -166,7 +574,6 @@ export default function CompleteProfile() {
     checkAuthAndProfileStatus();
   }, [router]);
 
-  // Check if first time user
   const checkIfFirstTimeUser = (userData: User): boolean => {
     const requiredFields = [
       'phone',
@@ -190,7 +597,6 @@ export default function CompleteProfile() {
     return emptyFields.length >= 5;
   };
 
-  // Check permission status - UPDATED with field disable logic
   const checkPermissionStatus = async () => {
     try {
       const data = await apiGetUpdatePermissionStatus();
@@ -198,48 +604,89 @@ export default function CompleteProfile() {
       setPermissionData(data.permissionData);
       console.log('Permission status:', data.permissionData.status);
 
-      // NAYA LOGIC - Fields disable karo based on permission status
       if (data.permissionData.status === "approved") {
-        setAreFieldsDisabled(false); // Permission approved - fields enable karo
+        setAreFieldsDisabled(false);
         console.log('Permission approved - Fields enabled');
       } else {
-        setAreFieldsDisabled(true); // No permission - fields disable karo
+        setAreFieldsDisabled(true);
         console.log('No permission - Fields disabled');
       }
 
     } catch (error) {
       console.error('Error checking permission status:', error);
-      // If error, disable fields for safety
       setAreFieldsDisabled(true);
       setPermissionStatus("none");
     }
   };
 
-  // Request permission from admin
+  // UPDATED - Enhanced permission request
   const requestPermission = async () => {
+    // Validation
+    if (!permissionRequestForm.generalReason.trim() && permissionRequestForm.requestedChanges.length === 0) {
+      toast.error("Please provide a general reason or specify field changes", {
+        duration: 5000,
+      });
+      return;
+    }
+
+    // Validate individual field changes
+    const invalidChanges = permissionRequestForm.requestedChanges.filter(
+      change => change.fieldName && (!change.newValue.trim() || !change.reason.trim())
+    );
+
+    if (invalidChanges.length > 0) {
+      toast.error("Please complete all field change details (new value and reason)", {
+        duration: 5000,
+      });
+      return;
+    }
+
     setIsRequestingPermission(true);
     try {
-      await apiRequestUpdatePermission({ reason: "Profile update request" });
+      // Prepare requested changes in the format expected by backend
+      const requestedChanges: { [key: string]: { currentValue: any, newValue: any, reason: string } } = {};
+      
+      permissionRequestForm.requestedChanges
+        .filter(change => change.fieldName && change.newValue.trim() && change.reason.trim())
+        .forEach(change => {
+          requestedChanges[change.fieldName] = {
+            currentValue: change.currentValue,
+            newValue: change.newValue,
+            reason: change.reason
+          };
+        });
+
+      const payload = {
+        updatePermissionReason: permissionRequestForm.generalReason,
+        requestedChanges,
+        changesSummary: generateChangesSummary()
+      };
+
+      await apiRequestUpdatePermission(payload);
       setPermissionStatus("requested");
       setShowPermissionDialog(false);
-      // Fields still disabled until admin approves
       setAreFieldsDisabled(true);
+      
+      // Reset permission request form
+      setPermissionRequestForm({
+        generalReason: '',
+        requestedChanges: []
+      });
+
       toast.success("Permission request sent to admin successfully!", {
-  duration: 4000,
-});
+        duration: 4000,
+      });
     } catch (error) {
       console.error('Error requesting permission:', error);
-     toast.error("Failed to send permission request", {
-  duration: 5000,
-});
+      toast.error("Failed to send permission request", {
+        duration: 5000,
+      });
     } finally {
       setIsRequestingPermission(false);
     }
   };
 
-  // Handle input changes - UPDATED with disabled check
   const handleInputChange = (name: string, value: string | boolean | File) => {
-    // Agar fields disabled hain toh input change nahi karne do
     if (areFieldsDisabled && !isFirstTimeUser) {
       console.log('Fields are disabled, ignoring input change');
       return;
@@ -250,7 +697,6 @@ export default function CompleteProfile() {
       [name]: value
     }));
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -259,9 +705,7 @@ export default function CompleteProfile() {
     }
   };
 
-  // Handle photo upload - UPDATED with disabled check
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Agar fields disabled hain toh photo change nahi karne do
     if (areFieldsDisabled && !isFirstTimeUser) {
       console.log('Fields are disabled, ignoring photo change');
       return;
@@ -305,9 +749,7 @@ export default function CompleteProfile() {
     }
   };
 
-  // Handle date selection - UPDATED with disabled check
   const handleDateSelect = (selectedDate: Date | undefined) => {
-    // Agar fields disabled hain toh date change nahi karne do
     if (areFieldsDisabled && !isFirstTimeUser) {
       console.log('Fields are disabled, ignoring date change');
       return;
@@ -323,7 +765,6 @@ export default function CompleteProfile() {
     setOpen(false);
   };
 
-  // Validate form
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -357,7 +798,6 @@ export default function CompleteProfile() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -366,7 +806,6 @@ export default function CompleteProfile() {
     console.log('Permission status:', permissionStatus);
     console.log('Are fields disabled:', areFieldsDisabled);
 
-    // Permission check sirf existing users ke liye
     if (!isFirstTimeUser && permissionStatus !== "approved") {
       console.log('Existing user without permission, showing dialog');
       setShowPermissionDialog(true);
@@ -395,18 +834,16 @@ export default function CompleteProfile() {
 
       const result = await apiUpdatePersonalDetails(submitData);
 
-      console.log("result ",result)
+      console.log("result ", result);
 
       if (isFirstTimeUser) {
         toast.success("Profile completed successfully!", {
-  duration: 4000,
-});
-
+          duration: 4000,
+        });
       } else {
-       toast.success("Profile updated successfully!", {
-  duration: 4000,
-});
-        // After successful update, reset permission status
+        toast.success("Profile updated successfully!", {
+          duration: 4000,
+        });
         setPermissionStatus("none");
         setAreFieldsDisabled(true);
       }
@@ -430,86 +867,158 @@ export default function CompleteProfile() {
     }
   };
 
-  // Permission Dialog Component
+  // UPDATED - Enhanced Permission Dialog Component
   const PermissionDialog = () => {
     if (!showPermissionDialog || isFirstTimeUser) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-          <h3 className="text-lg font-semibold mb-4">Admin Permission Required</h3>
-
-          {permissionStatus === "none" && (
-            <div>
-              <p className="text-gray-600 mb-4">
-                You need admin permission to update your profile. Would you like to request permission?
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={requestPermission}
-                  disabled={isRequestingPermission}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isRequestingPermission ? "Requesting..." : "Request Permission"}
-                </button>
-                <button
-                  onClick={() => setShowPermissionDialog(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {permissionStatus === "requested" && (
-            <div>
-              <p className="text-yellow-600 mb-4">
-                Your permission request is pending admin approval.
-              </p>
-              <p className="text-sm text-gray-500 mb-4">
-                Request sent on: {permissionData?.requestDate ? new Date(permissionData.requestDate).toLocaleDateString() : 'N/A'}
-              </p>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b p-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-semibold">Request Profile Update Permission</h3>
               <button
                 onClick={() => setShowPermissionDialog(false)}
-                className="w-full bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400"
+                className="text-gray-400 hover:text-gray-600"
               >
-                Close
+                <X className="w-5 h-5" />
               </button>
             </div>
-          )}
+          </div>
 
-          {permissionStatus === "rejected" && (
-            <div>
-              <p className="text-red-600 mb-4">
-                Your permission request was rejected by admin.
-              </p>
-              {permissionData?.adminComments && (
-                <p className="text-sm text-gray-600 mb-4">
-                  Admin Comments: {permissionData.adminComments}
-                </p>
-              )}
-              <div className="flex space-x-3">
-                <button
-                  onClick={requestPermission}
-                  disabled={isRequestingPermission}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Request Again
-                </button>
+          <div className="p-6">
+            {permissionStatus === "none" && (
+              <PermissionRequestForm
+                permissionRequestForm={permissionRequestForm}
+                onGeneralReasonChange={handleGeneralReasonChange}
+                onFieldChange={handleFieldChange}
+                onAddField={handleAddField}
+                onRemoveField={handleRemoveField}
+                availableFields={availableFields}
+                fieldDisplayNames={fieldDisplayNames}
+                onSubmit={requestPermission}
+                onCancel={() => setShowPermissionDialog(false)}
+                isSubmitting={isRequestingPermission}
+                getCurrentFieldValue={getCurrentFieldValue}
+              />
+            )}
+
+            {permissionStatus === "requested" && (
+              <div>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-8 h-8 text-yellow-600" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Request Pending</h4>
+                  <p className="text-yellow-600 mb-4">
+                    Your permission request is pending admin approval.
+                  </p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Request sent on: {permissionData?.requestDate ? new Date(permissionData.requestDate).toLocaleDateString() : 'N/A'}
+                  </p>
+                  {permissionData?.changesSummary && (
+                    <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                      <h5 className="font-medium text-gray-900 mb-2">Request Details:</h5>
+                      <p className="text-sm text-gray-600">{permissionData.changesSummary}</p>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setShowPermissionDialog(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400"
+                  className="w-full bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 font-medium"
                 >
                   Close
                 </button>
               </div>
-            </div>
-          )}
+            )}
+
+            {permissionStatus === "rejected" && (
+              <div>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <X className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Request Rejected</h4>
+                  <p className="text-red-600 mb-4">
+                    Your permission request was rejected by admin.
+                  </p>
+                  {permissionData?.adminComments && (
+                    <div className="bg-red-50 rounded-lg p-4 mb-6 text-left">
+                      <h5 className="font-medium text-red-900 mb-2">Admin Comments:</h5>
+                      <p className="text-sm text-red-700">{permissionData.adminComments}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={requestPermission}
+                    disabled={isRequestingPermission}
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    Request Again
+                  </button>
+                  <button
+                    onClick={() => setShowPermissionDialog(false)}
+                    className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   };
+
+  // Update the state handlers with proper types
+  const handleGeneralReasonChange = useCallback((value: string) => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      generalReason: value
+    }));
+  }, []);
+
+  const handleFieldChange = useCallback((index: number, updates: Partial<RequestedFieldChange>) => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: prev.requestedChanges.map((change, i) => {
+        if (i === index) {
+          const updated = { ...change, ...updates };
+          if (updates.fieldName) {
+            updated.currentValue = getCurrentFieldValue(updates.fieldName);
+            updated.fieldDisplayName = fieldDisplayNames[updates.fieldName] || updates.fieldName;
+          }
+          return updated;
+        }
+        return change;
+      })
+    }));
+  }, [getCurrentFieldValue, fieldDisplayNames]);
+
+  const handleAddField = useCallback(() => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: [
+        ...prev.requestedChanges,
+        {
+          fieldName: '',
+          fieldDisplayName: '',
+          currentValue: '',
+          newValue: '',
+          reason: ''
+        }
+      ]
+    }));
+  }, []);
+
+  const handleRemoveField = useCallback((index: number) => {
+    setPermissionRequestForm(prev => ({
+      ...prev,
+      requestedChanges: prev.requestedChanges.filter((_, i) => i !== index)
+    }));
+  }, []);
 
   if (isLoading) {
     return (
@@ -528,7 +1037,6 @@ export default function CompleteProfile() {
             <h1 className="text-3xl font-bold text-white flex items-center">
               <User className="mr-3 h-8 w-8" />
               {isFirstTimeUser ? 'Complete Your Profile' : 'Update Your Profile'}
-              {/* NAYA - Show lock icon if fields are disabled */}
               {areFieldsDisabled && !isFirstTimeUser && (
                 <Lock className="ml-3 h-6 w-6 text-yellow-300" />
               )}
@@ -578,7 +1086,6 @@ export default function CompleteProfile() {
             </div>
           )}
 
-          {/* NAYA - Fields locked banner */}
           {areFieldsDisabled && !isFirstTimeUser && permissionStatus === "none" && (
             <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
               <div className="flex">
@@ -600,7 +1107,6 @@ export default function CompleteProfile() {
             </div>
           )}
 
-          {/* First Time User Info Banner */}
           {isFirstTimeUser && (
             <div className="bg-green-50 border-l-4 border-green-400 p-4">
               <div className="flex">
@@ -619,7 +1125,7 @@ export default function CompleteProfile() {
           )}
 
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            {/* Photo Upload Section - UPDATED with disabled state */}
+            {/* Photo Upload Section */}
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 {photoPreview ? (
@@ -648,7 +1154,6 @@ export default function CompleteProfile() {
                     className="hidden"
                   />
                 </label>
-                {/* NAYA - Show lock icon on photo if disabled */}
                 {areFieldsDisabled && !isFirstTimeUser && (
                   <div className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1">
                     <Lock className="w-3 h-3" />
@@ -658,7 +1163,7 @@ export default function CompleteProfile() {
               {errors.photo && <p className="text-red-500 text-sm">{errors.photo}</p>}
             </div>
 
-            {/* Personal Information - UPDATED with disabled states */}
+            {/* Personal Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="phone" className="flex items-center">
@@ -717,61 +1222,48 @@ export default function CompleteProfile() {
                 {errors.address && <p className="text-red-500 text-sm">{errors.address}</p>}
               </div>
 
-             <div className="space-y-2">
-  <Label className="flex items-center">
-    <CalendarDays className="w-4 h-4 mr-2 text-blue-600" />
-    Date of Birth *
-    {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
-  </Label>
-  <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger asChild>
-      <Button
-        variant="outline"
-        disabled={areFieldsDisabled && !isFirstTimeUser}
-        className={cn(
-          "w-full justify-start text-left font-normal",
-          !date && "text-muted-foreground",
-          errors.dob && "border-red-500",
-          areFieldsDisabled && !isFirstTimeUser && "bg-gray-100 cursor-not-allowed opacity-60"
-        )}
-      >
-        <Calendar className="mr-2 h-4 w-4" />
-        {date ? format(date, "PPP") : "Pick a date"}
-      </Button>
-    </PopoverTrigger>
-    <PopoverContent className="w-auto p-0" align="start">
-      <CalendarComponent
-        mode="single"
-        selected={date}
-        captionLayout="dropdown"
-        month={month}
-        onMonthChange={setMonth}
-        onSelect={(selectedDate) => {
-          if (areFieldsDisabled && !isFirstTimeUser) {
-            console.log('Fields are disabled, ignoring date change');
-            return;
-          }
-          setDate(selectedDate);
-          if (selectedDate) {
-            setFormData(prev => ({
-              ...prev,
-              dob: formatDate(selectedDate)
-            }));
-          }
-          setOpen(false);
-        }}
-        disabled={(date) =>
-          date > new Date() || date < new Date("1900-01-01")
-        }
-        initialFocus
-        fromYear={1900}
-        toYear={new Date().getFullYear()}
-        showOutsideDays={false}
-      />
-    </PopoverContent>
-  </Popover>
-  {errors.dob && <p className="text-red-500 text-sm">{errors.dob}</p>}
-</div>
+              <div className="space-y-2">
+                <Label className="flex items-center">
+                  <CalendarDays className="w-4 h-4 mr-2 text-blue-600" />
+                  Date of Birth *
+                  {areFieldsDisabled && !isFirstTimeUser && <Lock className="w-3 h-3 ml-2 text-red-500" />}
+                </Label>
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={areFieldsDisabled && !isFirstTimeUser}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground",
+                        errors.dob && "border-red-500",
+                        areFieldsDisabled && !isFirstTimeUser && "bg-gray-100 cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={date}
+                      captionLayout="dropdown"
+                      month={month}
+                      onMonthChange={setMonth}
+                      onSelect={handleDateSelect}
+                      disabled={(date) =>
+                        date > new Date() || date < new Date("1900-01-01")
+                      }
+                      initialFocus
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                      showOutsideDays={false}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {errors.dob && <p className="text-red-500 text-sm">{errors.dob}</p>}
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="gender" className="flex items-center">
@@ -925,7 +1417,7 @@ export default function CompleteProfile() {
               </div>
             </div>
 
-            {/* Checkboxes - UPDATED with disabled states */}
+            {/* Checkboxes */}
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -958,7 +1450,7 @@ export default function CompleteProfile() {
               </div>
             </div>
 
-            {/* Submit Button - UPDATED with disabled state */}
+            {/* Submit Button */}
             <div className="flex justify-end space-x-4">
               <Button
                 type="button"
