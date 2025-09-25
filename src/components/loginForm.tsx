@@ -74,7 +74,7 @@ export function LoginForm({
 
     const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        
+
         if (!onValidationCheck()) {
             return;
         }
@@ -86,12 +86,12 @@ export function LoginForm({
             }
 
             const loadingToast = toast.loading('Logging you in...');
-            
+
             const response = await loginUser(payload);
             console.log("authUser after login:", authUser, response)
-            
+
             toast.dismiss(loadingToast);
-            
+
             // Show success toast
             toast.success('Login successful!', {
                 description: 'Welcome back to your account.',
@@ -99,7 +99,7 @@ export function LoginForm({
             })
         } catch (error: any) {
             console.log("Error occurred during login:", error, typeof error)
-            
+
             // Show error toast with proper error handling
             const errorMessage = error?.response?.data?.message || error?.message || "Login failed. Please try again."
             toast.error('Login failed!', {
@@ -110,10 +110,10 @@ export function LoginForm({
     }
 
     const router = useRouter()
-    
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-24 pb-12 px-4">
-            <div className="max-w-md mx-auto my-auto bg-white rounded-lg  shadow-md p-4 sm:p-6">
+            <div className="max-w-md mx-auto my-auto bg-transparent rounded-lg p-4 sm:p-6">
                 <form className={cn("flex flex-col gap-6", className)} {...props} onSubmit={onSubmitHandler}>
                     <div className="flex flex-col items-start gap-2 text-left">
                         <h1 className="text-2xl font-bold text-bgPrimary-100">Login to your account</h1>
@@ -121,17 +121,17 @@ export function LoginForm({
                             Enter your credentials below to access your student account
                         </p>
                     </div>
-                    
+
                     <div className="grid gap-6">
                         {/* Email Field */}
                         <div className="grid gap-2">
                             <Label htmlFor="email" className="text-sm font-medium">Email Address *</Label>
-                            <Input 
-                                id="email" 
-                                type="email" 
-                                name="email" 
-                                value={formData.email} 
-                                onChange={onChangeHandler} 
+                            <Input
+                                id="email"
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={onChangeHandler}
                                 placeholder="student@university.com"
                                 className={formDataError.email ? 'border-red-500 focus:border-red-500' : ''}
                                 disabled={isLoggingIn}
@@ -150,11 +150,11 @@ export function LoginForm({
                                 </a>
                             </div>
                             <div className="relative">
-                                <Input 
-                                    id="password" 
-                                    type={showPassword ? "text" : "password"} 
-                                    name="password" 
-                                    value={formData.password} 
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    value={formData.password}
                                     onChange={onChangeHandler}
                                     placeholder="Enter your password"
                                     className={`pr-10 ${formDataError.password ? 'border-red-500 focus:border-red-500' : ''}`}
@@ -175,9 +175,9 @@ export function LoginForm({
                             </div>
                         </div>
 
-                        <Button 
-                            type="submit" 
-                            className="w-full !bg-bgPrimary-100 hover:!bg-bgPrimary-100/90 transition-colors h-11" 
+                        <Button
+                            type="submit"
+                            className="w-full !bg-bgPrimary-100 hover:!bg-bgPrimary-100/90 transition-colors h-11"
                             disabled={isLoggingIn}
                         >
                             {isLoggingIn ? (
@@ -191,22 +191,30 @@ export function LoginForm({
                         </Button>
                     </div>
                 </form>
-                
+
                 <div className="relative py-4 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                     <span className="relative z-10 bg-background px-2 text-muted-foreground">
                         Don't have an account?
                     </span>
                 </div>
-                
-                <Button 
-                    variant="outline" 
-                    className="w-full h-11" 
+
+                <Button
+                    variant="outline"
+                    className="w-full h-11"
                     onClick={() => router.push("/sign-up")}
                     disabled={isLoggingIn}
                 >
                     <UserPlus className="w-4 h-4 mr-2" />
                     Sign Up
                 </Button>
+
+                <small className="text-sm block mx-auto mt-4 w-full max-w-md rounded-xl bg-blue-50 text-blue-900 border border-blue-200 shadow-sm p-4">
+                    <h3 className="font-semibold text-blue-800 mb-2">Dummy Login Student Credentials</h3>
+                    <ul className="space-y-1">
+                        <li><span className="font-medium">Email:</span> john.doe@university.com</li>
+                        <li><span className="font-medium">Password:</span> Student123</li>
+                    </ul>
+                </small>
             </div>
         </div>
     )

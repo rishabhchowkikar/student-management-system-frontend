@@ -213,8 +213,8 @@ export function SignUpForm({
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-4">
-            <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+        <div className="min-h-screen bg-white pt-24 pb-12 px-4">
+            <div className="max-w-md mx-auto bg-transparent rounded-lg p-8">
                 <form className={cn("flex flex-col gap-6", className)} {...props} onSubmit={onSubmitHandler}>
                     <div className="flex flex-col items-start gap-2 text-left">
                         <h1 className="text-2xl font-bold text-bgPrimary-100">Student SignUp</h1>
