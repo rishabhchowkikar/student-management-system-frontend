@@ -24,13 +24,17 @@ import { useCourseStore } from '@/lib/store/useCourseStore';
 import { usePathname } from 'next/navigation'
 
 const Sidebar: React.FC = () => { 
-    const { authUser, logout, isLoggingOut } = useAuthStore()
+    const { authUser, logout, isLoggingOut, isCheckingAuth } = useAuthStore()
     const router = useRouter()
     const [isLogoutConfirming, setIsLogoutConfirming] = useState(false)
     const { isSidebarOpen, setSidebarClose } = useCourseStore();
     const pathname = usePathname()
 
     const student = authUser?.data
+    
+    // Check if user data is loaded
+    const isUserDataLoaded = !!authUser && !!student && !isCheckingAuth
+    
     const sidebarMenuItems = [
         { icon: User, label: "Profile", route: "/" },
         { icon: BookOpen, label: "Courses", route: "/course" },
@@ -48,6 +52,7 @@ const Sidebar: React.FC = () => {
     }
 
     const handleLogoutConfirmation = () => {
+        if (!isUserDataLoaded) return; // Prevent logout if data not loaded
         setIsLogoutConfirming(true)
         toast.custom((t: any) => (
             <div className="flex flex-col items-start p-6 rounded-xl shadow-xl border border-gray-200 bg-white w-96">
@@ -113,6 +118,15 @@ const Sidebar: React.FC = () => {
         }
     }
 
+    const handleNavigation = (route: string) => {
+        // Prevent navigation if user data is not loaded
+        if (!isUserDataLoaded) {
+            return;
+        }
+        router.push(route)
+        setSidebarClose(false)
+    }
+
     return (
         <>
             <div
@@ -126,7 +140,7 @@ const Sidebar: React.FC = () => {
                     p-4 sm:p-6 flex-shrink-0">
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                         <div className="flex items-center space-x-2 sm:space-x-3">
-                            {student ? (
+                            {isUserDataLoaded ? (
                                 <>
                                     <Avatar className="h-10 w-10 sm:h-12 sm:w-12 ring-2 ring-white/20">
                                         <AvatarImage 
@@ -165,7 +179,7 @@ const Sidebar: React.FC = () => {
                     
                     {/* Student Info */}
                     <div className="text-sm opacity-90">
-                        {student ? (
+                        {isUserDataLoaded ? (
                             <>
                                 <p className="truncate">Roll No: {student.rollno}</p>
                                 <p className="truncate">{student.email}</p>
@@ -187,15 +201,15 @@ const Sidebar: React.FC = () => {
                             <Button
                                 key={item.label}
                                 variant="ghost"
-                                onClick={() => {
-                                    router.push(item.route)
-                                    setSidebarClose(false)
-                                }}
+                                onClick={() => handleNavigation(item.route)}
+                                disabled={!isUserDataLoaded || isCheckingAuth}
                                 className={`
                                     w-full justify-start gap-3 h-10 sm:h-11
-                                    ${isActive 
-                                        ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" 
-                                        : "text-gray-600 hover:bg-gray-100"
+                                    ${!isUserDataLoaded || isCheckingAuth
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : isActive 
+                                            ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" 
+                                            : "text-gray-600 hover:bg-gray-100"
                                     }
                                 `}
                             >
@@ -209,13 +223,19 @@ const Sidebar: React.FC = () => {
                     
                     <Button
                         variant="ghost"
-                        className="w-full justify-start gap-3 h-10 sm:h-11 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        className={`
+                            w-full justify-start gap-3 h-10 sm:h-11 
+                            ${!isUserDataLoaded || isCheckingAuth
+                                ? "opacity-50 cursor-not-allowed text-gray-400"
+                                : "text-red-600 hover:bg-red-50 hover:text-red-700"
+                            }
+                        `}
                         onClick={handleLogoutConfirmation}
-                        disabled={isLoggingOut}
+                        disabled={!isUserDataLoaded || isLoggingOut || isCheckingAuth}
                     >
                         <LogOut className="h-5 w-5" />
                         <span className="truncate">
-                            {isLoggingOut ? "Logging out..." : "Logout"}
+                            {isLoggingOut ? "Logging out..." : isCheckingAuth ? "Loading..." : "Logout"}
                         </span>
                     </Button>
                 </nav>

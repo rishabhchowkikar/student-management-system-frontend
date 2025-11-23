@@ -43,7 +43,7 @@ export interface AuthStore {
 
 export const apiCheckAuth = async () => {
     try {
-        const res = await axiosApiInstance.get("/api/auth/check-auth", {
+        const res = await axiosApiInstance.get("/api/auth/check-auth-student", {
             withCredentials: true
         });
         return res.data
@@ -118,6 +118,27 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     isLoggingOut: false,
     skipAuthCheck: false,
 
+    // loginUser: async (payload: LoginPayload) => {
+    //     set({ isLoggingIn: true })
+    //     try {
+    //         const response = await axiosApiInstance.post("/api/auth/student/login",
+    //             payload,
+    //             {
+    //                 withCredentials: true,
+    //                 headers: {
+    //                     "Content-Type": "application/json"
+    //                 }
+    //             })
+    //         set({ authUser: response.data });
+    //         return response.data
+    //     } catch (error) {
+    //         console.log(`error: ${error}`)
+    //     }
+    //     finally {
+    //         set({ isLoggingIn: false })
+    //     }
+    // },
+
     loginUser: async (payload: LoginPayload) => {
         set({ isLoggingIn: true })
         try {
@@ -129,12 +150,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
                         "Content-Type": "application/json"
                     }
                 })
+            
+            // Validate response before setting auth state
+            if (!response.data || !response.data.status) {
+                throw new Error(response.data?.message || "Login failed");
+            }
+            
             set({ authUser: response.data });
             return response.data
-        } catch (error) {
-            console.log(`error: ${error}`)
-        }
-        finally {
+        } catch (error: any) {
+            console.log(`Login error: ${error}`)
+            // Re-throw the error so the calling code can handle it
+            throw error;
+        } finally {
             set({ isLoggingIn: false })
         }
     },
@@ -191,7 +219,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         if (get().isLoggingOut || get().skipAuthCheck) return;
         set({isCheckingAuth:true})
         try {
-            const res = await axiosApiInstance.get("/api/auth/check-auth", {
+            const res = await axiosApiInstance.get("/api/auth/check-auth-student", {
                 withCredentials: true
             });
             set({ authUser: res.data })
